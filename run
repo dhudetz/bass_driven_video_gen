@@ -1,0 +1,37 @@
+# Path to your script (edit if needed)
+export CHAOS_PY="/Users/dhudetz/code/bass_driven_video_gen/bass_video_gen.py"
+export CHAOS_VENV="/Users/dhudetz/code/bass_driven_video_gen/venv/bin/python"
+
+# Run chaos video generator.
+# Usage:
+#   chaosvid [directory]
+# If no directory is given, it uses the current directory.
+musicvideo() {
+  local dir="${1:-$PWD}"
+
+  if [[ ! -d "$dir" ]]; then
+    echo "error: '$dir' is not a directory" >&2
+    return 1
+  fi
+  if [[ ! -f "$CHAOS_PY" ]]; then
+    echo "error: CHAOS_PY not found at '$CHAOS_PY'" >&2
+    return 1
+  fi
+
+  local py="$CHAOS_VENV"
+  [[ -x "$py" ]] || py="$(command -v python3 || command -v python)"
+
+  if [[ -z "$py" ]]; then
+    echo "error: couldn't find a Python interpreter" >&2
+    return 1
+  fi
+
+  "$py" "$CHAOS_PY" "$dir"
+}
+
+# Optional: tab-complete directories for the first arg
+_comp_chaosvid() {
+  _files -/
+}
+compdef _comp_chaosvid chaosvid
+
