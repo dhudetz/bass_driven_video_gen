@@ -8,22 +8,22 @@ import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 from tqdm import tqdm
+import scipy.ndimage
 
 # ========= CONFIG =========
-# Bass detection params
 LF_MIN_HZ       = 10     # Lower bound for 808/sub
 LF_MAX_HZ       = 50     # Upper bound for 808/sub
 N_FFT           = 4096
 HOP_LENGTH      = 256
-ONSET_DELTA     = 0.1    # Lower = more sensitive
-RANDOM_CLIP_MIN = 0.25    # Min clip length
-RANDOM_CLIP_MAX = 15    # Max clip length
+ONSET_DELTA     = 0.12   # Onset detection threshold
+RANDOM_CLIP_MIN = 0.25   # Min clip length
+RANDOM_CLIP_MAX = 15     # Max clip length
 COOLDOWN        = RANDOM_CLIP_MIN   # Minimum time between bass hits (seconds)
 
 video_folder = os.path.join(os.path.dirname(__file__), "footage_outside")
 mp3_filename    = "audio.mp3"
 output_filename = "compiled.mp4"
-plot_filename = f"bass_plot_{LF_MIN_HZ}_{LF_MAX_HZ}.png"
+plot_filename   = f"bass_plot_{LF_MIN_HZ}_{LF_MAX_HZ}.png"
 
 # ========= PIPELINE TOGGLES =========
 ENABLE_BASS_DETECTION     = True
@@ -46,26 +46,52 @@ def ffprobe_duration(path):
     except Exception:
         return None
 
+def ffprobe_stream_info(path):
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=r_frame_rate,avg_frame_rate",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        path
+    ]
+    try:
+        lines = run(cmd).splitlines()
+        fps = None
+        for line in lines:
+            if '/' in line:
+                try:
+                    num, den = line.split('/')
+                    fps = float(num) / float(den)
+                    break
+                except:
+                    continue
+        return {"r_fps": fps}
+    except Exception:
+        return {"r_fps": 30.0}
+
 def safe_tmp(suffix):
     return tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=tempfile.gettempdir()).name
 
-import scipy.ndimage
-
-def detect_bass_hits(mp3_path, plot_path):
+# ========= DETECTION =========
+def detect_bass_hits(mp3_path, plot_path=None):
     import librosa
     from scipy.signal import butter, sosfiltfilt
 
+    # Load audio
     y, sr = librosa.load(mp3_path, mono=True)
+
+    # Bandpass for sub/bass drums
     nyquist = 0.5 * sr
     sos = butter(4, [LF_MIN_HZ / nyquist, LF_MAX_HZ / nyquist], btype='band', output='sos')
     y_filtered = sosfiltfilt(sos, y)
     y_filtered = np.nan_to_num(y_filtered)
 
+    # Compute onset envelope
     onset_env = librosa.onset.onset_strength(y=y_filtered, sr=sr, hop_length=HOP_LENGTH)
-    # Smooth onset envelope
     onset_env = scipy.ndimage.median_filter(onset_env, size=5)
     times = librosa.frames_to_time(np.arange(len(onset_env)), sr=sr, hop_length=HOP_LENGTH)
 
+    # Detect onsets
     onsets = librosa.onset.onset_detect(
         onset_envelope=onset_env,
         sr=sr,
@@ -74,10 +100,10 @@ def detect_bass_hits(mp3_path, plot_path):
         backtrack=True,
         pre_max=10, post_max=10,
         pre_avg=20, post_avg=20,
-        delta=0.12  # try 0.1–0.15 for fewer hits
+        delta=ONSET_DELTA
     )
 
-    # Apply cooldown filter
+    # Apply cooldown
     all_onsets = sorted(onsets)
     kept_onsets = []
     dropped_onsets = []
@@ -91,7 +117,7 @@ def detect_bass_hits(mp3_path, plot_path):
             else:
                 dropped_onsets.append(onset)
 
-    if plot_path is not None:
+    if plot_path:
         plt.figure(figsize=(12, 4))
         plt.plot(times, onset_env, label="Bass Onset Envelope", color='blue')
         plt.vlines(kept_onsets, 0, onset_env.max(), color='red', alpha=0.8, linestyle='-', label="Kept Bass Hits")
@@ -107,19 +133,29 @@ def detect_bass_hits(mp3_path, plot_path):
 
     return kept_onsets
 
-
+# ========= VIDEO SEGMENTS =========
 def extract_random_segment(video_path, duration):
     vid_dur = ffprobe_duration(video_path)
     if vid_dur is None or vid_dur <= 0:
         return None
     start_time = random.uniform(0, max(0, vid_dur - duration))
-    seg_path = safe_tmp(".mov")
+    seg_path = safe_tmp(".mp4")
+
+    # Keep source FPS
+    info = ffprobe_stream_info(video_path)
+    fps = info["r_fps"] or 30.0
+    gop = int(round(fps * 2))
+
     cmd = [
         "ffmpeg", "-y",
         "-ss", f"{start_time:.3f}",
         "-t", f"{duration:.3f}",
         "-i", video_path,
-        "-c", "copy",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "14",
+        "-pix_fmt", "yuv420p",
+        "-g", str(gop), "-keyint_min", str(gop),
+        "-sc_threshold", "0",
+        "-movflags", "+faststart",
         seg_path
     ]
     try:
@@ -196,29 +232,20 @@ def main():
         clip_idx = 0
         for i in tqdm(range(len(bass_hits) - 1), desc="Extracting video segments"):
             seg_dur = max(RANDOM_CLIP_MIN, min(bass_hits[i+1] - bass_hits[i], RANDOM_CLIP_MAX))
-            seg_path = os.path.join(segments_dir, f"seg_{i:04d}.mov")
-            cmd = [
-                "ffmpeg", "-y",
-                "-ss", f"{random.uniform(0, max(0, ffprobe_duration(valid_files[clip_idx]) - seg_dur)):.3f}",
-                "-t", f"{seg_dur:.3f}",
-                "-i", valid_files[clip_idx],
-                "-c", "copy",
-                seg_path
-            ]
-            try:
-                subprocess.run(cmd, check=True, capture_output=True)
+            seg_path = os.path.join(segments_dir, f"seg_{i:04d}.mp4")
+            seg_file = extract_random_segment(valid_files[clip_idx], seg_dur)
+            if seg_file:
+                shutil.move(seg_file, seg_path)
                 segments.append(seg_path)
-            except subprocess.CalledProcessError:
-                pass  # Skip if failed
 
             clip_idx = (clip_idx + 1) % len(valid_files)
             if clip_idx == 0:
-                random.shuffle(valid_files)  # reshuffle after cycling all clips
+                random.shuffle(valid_files)
     else:
         if not os.path.isdir(segments_dir):
             print(f"[ERROR] Segments directory not found: {segments_dir}")
             sys.exit(1)
-        segments = [os.path.join(segments_dir, f) for f in sorted(os.listdir(segments_dir)) if f.lower().endswith(".mov")]
+        segments = [os.path.join(segments_dir, f) for f in sorted(os.listdir(segments_dir)) if f.lower().endswith(".mp4")]
         print(f"[INFO] Loaded {len(segments)} segments from directory.")
 
     # Concatenate segments
@@ -227,11 +254,24 @@ def main():
         for seg in segments:
             f.write(f"file '{seg}'\n")
 
-    temp_concat = os.path.join(video_folder, "concat.mov")
+    temp_concat = os.path.join(video_folder, "concat.mp4")
     if ENABLE_CONCATENATION:
         print("[INFO] Concatenating segments...")
         concat_cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", file_list_txt, "-c", "copy", temp_concat]
-        subprocess.run(concat_cmd, check=True, capture_output=True)
+        try:
+            subprocess.run(concat_cmd, check=True, capture_output=True)
+        except subprocess.CalledProcessError:
+            print("[WARN] Concat copy failed, re-encoding...")
+            fallback_cmd = [
+                "ffmpeg", "-y",
+                "-f", "concat", "-safe", "0",
+                "-i", file_list_txt,
+                "-c:v", "libx264", "-preset", "veryfast", "-crf", "14",
+                "-pix_fmt", "yuv420p",
+                "-movflags", "+faststart",
+                temp_concat
+            ]
+            subprocess.run(fallback_cmd, check=True, capture_output=True)
     else:
         if not os.path.exists(temp_concat):
             print(f"[ERROR] Concat file not found: {temp_concat}")
@@ -265,3 +305,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
