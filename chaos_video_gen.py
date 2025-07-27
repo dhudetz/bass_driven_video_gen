@@ -6,22 +6,32 @@ import tempfile
 import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
+import shutil
+from tqdm import tqdm
 
 # ========= CONFIG =========
-video_folder    = "/Users/dhudetz/scripts/video_gen/footage_outside"
-mp3_filename    = "audio.mp3"
-output_filename = "compiled.mp4"
-plot_filename   = "bass_hits_plot.png"
-
 # Bass detection params
 LF_MIN_HZ       = 10     # Lower bound for 808/sub
-LF_MAX_HZ       = 50    # Upper bound for 808/sub
+LF_MAX_HZ       = 50     # Upper bound for 808/sub
 N_FFT           = 4096
 HOP_LENGTH      = 256
-ONSET_DELTA     = 0.1   # Lower = more sensitive
-RANDOM_CLIP_MIN = 0.5    # Min clip length
-RANDOM_CLIP_MAX = 5.0    # Max clip length
-COOLDOWN        = 0.1   # Minimum time (seconds) between bass hits
+ONSET_DELTA     = 0.1    # Lower = more sensitive
+RANDOM_CLIP_MIN = 0.25    # Min clip length
+RANDOM_CLIP_MAX = 15    # Max clip length
+COOLDOWN        = RANDOM_CLIP_MIN   # Minimum time between bass hits (seconds)
+
+video_folder = os.path.join(os.path.dirname(__file__), "footage_outside")
+mp3_filename    = "audio.mp3"
+output_filename = "compiled.mp4"
+plot_filename = f"bass_plot_{LF_MIN_HZ}_{LF_MAX_HZ}.png"
+
+# ========= PIPELINE TOGGLES =========
+ENABLE_BASS_DETECTION     = True
+ENABLE_PLOTTING           = True
+ENABLE_EXTRACT_SEGMENTS   = True
+ENABLE_CONCATENATION      = True
+ENABLE_ADD_AUDIO          = True
+ENABLE_CLEANUP            = True
 
 # ========= UTILS =========
 def run(cmd):
@@ -68,25 +78,35 @@ def detect_bass_hits(mp3_path, plot_path):
     )
 
     # Apply cooldown filter
-    filtered_onsets = []
-    last_onset = -COOLDOWN
-    for onset in sorted(onsets):
-        if onset - last_onset >= COOLDOWN:
-            filtered_onsets.append(onset)
-            last_onset = onset
+    all_onsets = sorted(onsets)
+    kept_onsets = []
+    dropped_onsets = []
+    if len(all_onsets) > 0:
+        kept_onsets.append(all_onsets[0])
+        last_time = all_onsets[0]
+        for onset in all_onsets[1:]:
+            if onset - last_time >= COOLDOWN:
+                kept_onsets.append(onset)
+                last_time = onset
+            else:
+                dropped_onsets.append(onset)
 
-    plt.figure(figsize=(12, 4))
-    plt.plot(times, onset_env, label="Bass Onset Envelope", color='blue')
-    plt.vlines(filtered_onsets, 0, onset_env.max(), color='red', alpha=0.8, linestyle='--', label="Bass Hits")
-    plt.xlabel("Time (s)")
-    plt.ylabel("Energy")
-    plt.title("Detected Bass Hits (Filtered)")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(plot_path)
-    plt.close()
+    if plot_path is not None:
+        plt.figure(figsize=(12, 4))
+        plt.plot(times, onset_env, label="Bass Onset Envelope", color='blue')
+        plt.vlines(kept_onsets, 0, onset_env.max(), color='red', alpha=0.8, linestyle='-', label="Kept Bass Hits")
+        if dropped_onsets:
+            plt.vlines(dropped_onsets, 0, onset_env.max(), color='orange', alpha=0.8, linestyle='--', label="Dropped Bass Hits")
+        plt.xlabel("Time (s)")
+        plt.ylabel("Energy")
+        plt.title("Detected Bass Hits (Filtered)")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(plot_path)
+        plt.close()
 
-    return sorted(filtered_onsets)
+    return kept_onsets
+
 
 def extract_random_segment(video_path, duration):
     vid_dur = ffprobe_duration(video_path)
@@ -130,7 +150,12 @@ def main():
         sys.exit(1)
 
     # Filter out <5s files
-    valid_files = [vf for vf in video_files if ffprobe_duration(vf) >= 5]
+    valid_files = []
+    for vf in tqdm(video_files, desc="Validating video files"):
+        dur = ffprobe_duration(vf)
+        if dur is not None and dur >= 5:
+            valid_files.append(vf)
+
     if not valid_files:
         print("[ERROR] No video files >= 5s found.")
         sys.exit(1)
@@ -138,10 +163,24 @@ def main():
     print(f"[INFO] {len(valid_files)} valid video files found.")
 
     # Bass detection
-    plot_path = os.path.join(video_folder, plot_filename)
-    print("[INFO] Detecting bass hits and saving plot...")
-    bass_hits = detect_bass_hits(mp3_path, plot_path)
-    print(f"[INFO] Detected {len(bass_hits)} bass hits. Plot saved to {plot_path}")
+    bass_hits_path = os.path.join(video_folder, "bass_hits.txt")
+    if ENABLE_BASS_DETECTION:
+        print("[INFO] Detecting bass hits...")
+        plot_path = os.path.join(video_folder, plot_filename) if ENABLE_PLOTTING else None
+        bass_hits = detect_bass_hits(mp3_path, plot_path)
+        with open(bass_hits_path, "w") as f:
+            for t in bass_hits:
+                f.write(f"{t}\n")
+        print(f"[INFO] Detected {len(bass_hits)} bass hits.")
+        if ENABLE_PLOTTING:
+            print(f"[INFO] Plot saved to {plot_path}")
+    else:
+        if not os.path.isfile(bass_hits_path):
+            print(f"[ERROR] Bass hits file not found: {bass_hits_path}")
+            sys.exit(1)
+        with open(bass_hits_path, "r") as f:
+            bass_hits = [float(line.strip()) for line in f if line.strip()]
+        print(f"[INFO] Loaded {len(bass_hits)} bass hits from file.")
 
     mp3_duration = ffprobe_duration(mp3_path)
     if mp3_duration <= 0:
@@ -149,50 +188,80 @@ def main():
         sys.exit(1)
 
     # Create segments per bass hit
-    segments = []
-    random.shuffle(valid_files)
-    clip_idx = 0
+    segments_dir = os.path.join(video_folder, "segments")
+    if ENABLE_EXTRACT_SEGMENTS:
+        os.makedirs(segments_dir, exist_ok=True)
+        random.shuffle(valid_files)
+        segments = []
+        clip_idx = 0
+        for i in tqdm(range(len(bass_hits) - 1), desc="Extracting video segments"):
+            seg_dur = max(RANDOM_CLIP_MIN, min(bass_hits[i+1] - bass_hits[i], RANDOM_CLIP_MAX))
+            seg_path = os.path.join(segments_dir, f"seg_{i:04d}.mov")
+            cmd = [
+                "ffmpeg", "-y",
+                "-ss", f"{random.uniform(0, max(0, ffprobe_duration(valid_files[clip_idx]) - seg_dur)):.3f}",
+                "-t", f"{seg_dur:.3f}",
+                "-i", valid_files[clip_idx],
+                "-c", "copy",
+                seg_path
+            ]
+            try:
+                subprocess.run(cmd, check=True, capture_output=True)
+                segments.append(seg_path)
+            except subprocess.CalledProcessError:
+                pass  # Skip if failed
 
-    for i in range(len(bass_hits) - 1):
-        seg_dur = max(RANDOM_CLIP_MIN, min(bass_hits[i+1] - bass_hits[i], RANDOM_CLIP_MAX))
-        seg = extract_random_segment(valid_files[clip_idx], seg_dur)
-        if seg:
-            segments.append(seg)
-
-        clip_idx = (clip_idx + 1) % len(valid_files)
-        if clip_idx == 0:
-            random.shuffle(valid_files)  # reshuffle after cycling all clips
+            clip_idx = (clip_idx + 1) % len(valid_files)
+            if clip_idx == 0:
+                random.shuffle(valid_files)  # reshuffle after cycling all clips
+    else:
+        if not os.path.isdir(segments_dir):
+            print(f"[ERROR] Segments directory not found: {segments_dir}")
+            sys.exit(1)
+        segments = [os.path.join(segments_dir, f) for f in sorted(os.listdir(segments_dir)) if f.lower().endswith(".mov")]
+        print(f"[INFO] Loaded {len(segments)} segments from directory.")
 
     # Concatenate segments
-    file_list_txt = safe_tmp(".txt")
+    file_list_txt = os.path.join(video_folder, "file_list.txt")
     with open(file_list_txt, "w") as f:
         for seg in segments:
             f.write(f"file '{seg}'\n")
 
-    temp_concat = safe_tmp(".mov")
-    concat_cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", file_list_txt, "-c", "copy", temp_concat]
-    subprocess.run(concat_cmd, check=True)
+    temp_concat = os.path.join(video_folder, "concat.mov")
+    if ENABLE_CONCATENATION:
+        print("[INFO] Concatenating segments...")
+        concat_cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", file_list_txt, "-c", "copy", temp_concat]
+        subprocess.run(concat_cmd, check=True, capture_output=True)
+    else:
+        if not os.path.exists(temp_concat):
+            print(f"[ERROR] Concat file not found: {temp_concat}")
+            sys.exit(1)
+        print("[INFO] Using existing concat file.")
 
     output_path = os.path.join(video_folder, output_filename)
-    final_cmd = [
-        "ffmpeg", "-y",
-        "-i", temp_concat,
-        "-i", mp3_path,
-        "-shortest",
-        "-c:v", "copy",
-        "-c:a", "aac",
-        output_path
-    ]
-    subprocess.run(final_cmd, check=True)
+    if ENABLE_ADD_AUDIO:
+        print("[INFO] Adding audio to video...")
+        final_cmd = [
+            "ffmpeg", "-y",
+            "-i", temp_concat,
+            "-i", mp3_path,
+            "-shortest",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            output_path
+        ]
+        subprocess.run(final_cmd, check=True, capture_output=True)
 
     # Cleanup
-    os.remove(temp_concat)
-    os.remove(file_list_txt)
-    for seg in segments:
-        os.remove(seg)
+    if ENABLE_CLEANUP:
+        print("[INFO] Cleaning up intermediates...")
+        os.remove(file_list_txt)
+        os.remove(temp_concat)
+        shutil.rmtree(segments_dir)
 
     print(f"[✅ DONE] Compiled video saved to:\n{output_path}")
-    print(f"[INFO] Bass plot saved to:\n{plot_path}")
+    if ENABLE_PLOTTING and ENABLE_BASS_DETECTION:
+        print(f"[INFO] Bass plot saved to:\n{os.path.join(video_folder, plot_filename)}")
 
 if __name__ == "__main__":
     main()
