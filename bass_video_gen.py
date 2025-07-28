@@ -9,19 +9,21 @@ import matplotlib.pyplot as plt
 import shutil
 from tqdm import tqdm
 import scipy.ndimage
+from datetime import datetime
 
 # ========= CONFIG =========
-LF_MIN_HZ       = 10     # Lower bound for 808/sub
-LF_MAX_HZ       = 50     # Upper bound for 808/sub
+LF_MIN_HZ       = 1     # Lower bound for energy capture
+LF_MAX_HZ       = 500     # Upper bound for energy capture
 N_FFT           = 4096
 HOP_LENGTH      = 256
 ONSET_DELTA     = 0.12   # Onset detection threshold
-RANDOM_CLIP_MIN = 0.25   # Min clip length
+RANDOM_CLIP_MIN = 0.1   # Min clip length
 RANDOM_CLIP_MAX = 15     # Max clip length
 COOLDOWN        = RANDOM_CLIP_MIN   # Minimum time between bass hits (seconds)
 
-mp3_filename    = "audio.mp3"
-output_filename = "compiled.mp4"
+date_str = datetime.now().strftime("%Y%m%d_%H%M")
+mp3_filename = "audio.mp3"
+output_filename = f"compiled_{date_str}.mp4"
 
 # ========= PIPELINE TOGGLES =========
 ENABLE_BASS_DETECTION     = True
