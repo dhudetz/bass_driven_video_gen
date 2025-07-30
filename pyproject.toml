@@ -1,0 +1,7 @@
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"] # Selects common error, flake8, warning, and import rules
+ignore = ["E501"] # Ignores line-too-long errors if a formatter is used

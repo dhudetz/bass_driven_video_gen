@@ -1,7 +1,7 @@
 import os
+import random
 import subprocess
 import tempfile
-import random
 
 # === CONFIG ===
 video_folder = "/Users/dhudetz/scripts/video_gen/footage"

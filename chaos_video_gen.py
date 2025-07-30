@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 import os
-import sys
 import random
-import tempfile
-import subprocess
-import numpy as np
-import matplotlib.pyplot as plt
 import shutil
-from tqdm import tqdm
+import subprocess
+import sys
+import tempfile
+
+import matplotlib.pyplot as plt
+import numpy as np
 import scipy.ndimage
+from tqdm import tqdm
 
 # ========= CONFIG =========
 LF_MIN_HZ       = 10     # Lower bound for 808/sub
