@@ -7,5 +7,5 @@ ENABLE_ADD_AUDIO          = True
 ENABLE_CLEANUP            = True
 
 # ========= CONFIG ===========
-MIN_INPUT_VIDEO_LEN = 10
+MIN_INPUT_VIDEO_LEN = 5
 DELETE_SMALL_FILES = True

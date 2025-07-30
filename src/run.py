@@ -19,6 +19,7 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
+import argparse
 from global_config import *
 
 from editor_ui import launch_editor_ui
@@ -221,15 +222,19 @@ class VideoCompiler:
 
 # ========= ENTRY POINT =========
 def run():
+    parser = argparse.ArgumentParser(description="Chaos Video Pipeline Runner")
+    parser.add_argument("folder", type=Path, help="Path to the folder containing video files")
+    args = parser.parse_args()
+
+    folder = args.folder.resolve()
+
+    # Launch UI — still returns config, hits, and audio_path
     config, hits, audio_path = launch_editor_ui()
     if not audio_path or not hits:
         print("No audio or hits detected. Exiting.")
         return
 
-    folder = audio_path.parent
-
     VideoCompiler(config, folder, audio_path, hits).compile()
-
 
 
 if __name__ == "__main__":

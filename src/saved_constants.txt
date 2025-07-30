@@ -1,10 +1,7 @@
-AUDIO_PATH: !!python/object/apply:pathlib._local.PosixPath
-- /Users/dhudetz/code/bass_driven_video_gen/footage/audio.mp3
-COOLDOWN: 0.001
+AUDIO_PATH: /Volumes/DJI_VIDEOS/DCIM/100MEDIA/simba/ohhh_ya.mp3
 HOP_LENGTH: 256
-LF_MAX_HZ: 310
-LF_MIN_HZ: 122
-MIN_INPUT_VIDEO_LEN: 10
-ONSET_DELTA: 0.1999999999999999
+LF_MAX_HZ: 5000
+LF_MIN_HZ: 75
+ONSET_DELTA: 0.4
 RANDOM_CLIP_MAX: 30
-RANDOM_CLIP_MIN: 0.001
+RANDOM_CLIP_MIN: 0.2
