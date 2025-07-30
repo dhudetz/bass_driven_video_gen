@@ -6,4 +6,6 @@ generate music videos that randomly splice .MOV clips to the bass hits of an aud
 * Feature: get a proxy for the amount of motion in each frame. Use this to line up high energy clips with high energy parts of the music.
 * Feature: toggle using repeat footage. Best simple algo might be to cut the biggest clips first
 * User interface -> design bass hit profile then compile
-    * stretch goal on UI: thread each compilation to make multiple instances of the video at once
+   * stretch goal on UI: thread each compilation to make multiple instances of the video at once
+* Save configurations as its own format load different formats
+  
