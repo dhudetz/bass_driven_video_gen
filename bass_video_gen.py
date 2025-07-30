@@ -18,8 +18,8 @@ LF_MIN_HZ       = 80        # Lower bound for energy capture
 LF_MAX_HZ       = 5000     # Upper bound for energy capture
 N_FFT           = 1024
 HOP_LENGTH      = 256
-ONSET_DELTA     = 0.1   # Onset detection threshold
-RANDOM_CLIP_MIN = 0.001   # Min clip length
+ONSET_DELTA     = 0.3   # Onset detection threshold
+RANDOM_CLIP_MIN = 0.1   # Min clip length
 RANDOM_CLIP_MAX = 30     # Max clip length
 COOLDOWN        = RANDOM_CLIP_MIN   # Minimum time between bass hits (seconds)
 
@@ -201,7 +201,6 @@ def main():
     # Collect all .mov files in the folder
     video_files = []
     for f in video_folder.iterdir():
-        # TODO: There is a bug here where the "._" files are slipping through.
         if f.name.lower().endswith(".mov") and not f.name.startswith("._"):
             print(f"Including: {f.name}")
             video_files.append(f)
@@ -211,7 +210,6 @@ def main():
         print("[ERROR] No valid .mov files found.")
         sys.exit(1)
 
-    # Filter out files that are too short
     for file in tqdm(video_files, desc="Validating video files"):
         dur = ffprobe_duration(file)
         if dur is None or dur < MIN_INPUT_VIDEO_LEN:
@@ -225,7 +223,6 @@ def main():
 
     print(f"[INFO] {len(video_files)} valid video files found.")
 
-    # Bass detection
     bass_hits_path = video_folder / "bass_hits.txt"
     plot_path = video_folder / plot_filename if ENABLE_PLOTTING else None
     if ENABLE_BASS_DETECTION:
@@ -251,7 +248,9 @@ def main():
         print("[ERROR] Invalid MP3 duration.")
         sys.exit(1)
 
-    # Create segments per bass hit
+    if len(bass_hits) == 0 or bass_hits[-1] < mp3_duration:
+        bass_hits.append(mp3_duration)
+
     segments_dir = video_folder / "segments"
     if ENABLE_EXTRACT_SEGMENTS:
         segments_dir.mkdir(exist_ok=True)
@@ -276,7 +275,6 @@ def main():
         segments = [segments_dir / f for f in sorted(segments_dir.listdir()) if f.lower().endswith(".mp4")]
         print(f"[INFO] Loaded {len(segments)} segments from directory.")
 
-    # Concatenate segments
     file_list_txt = video_folder / "file_list.txt"
     with open(file_list_txt, "w") as f:
         for seg in segments:
@@ -320,7 +318,6 @@ def main():
         ]
         subprocess.run(final_cmd, check=True, capture_output=True)
 
-    # Cleanup
     if ENABLE_CLEANUP:
         print("[INFO] Cleaning up intermediates...")
         file_list_txt.unlink()
@@ -333,4 +330,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
