@@ -16,11 +16,11 @@ LF_MIN_HZ       = 90        # Lower bound for energy capture
 LF_MAX_HZ       = 120     # Upper bound for energy capture
 N_FFT           = 1024
 HOP_LENGTH      = 256
-ONSET_DELTA     = 0.255555   # Onset detection threshold
-RANDOM_CLIP_MIN = 0.12   # Min clip length
+ONSET_DELTA     = 0.3   # Onset detection threshold
+RANDOM_CLIP_MIN = 0.5   # Min clip length
 RANDOM_CLIP_MAX = 30     # Max clip length
 COOLDOWN        = RANDOM_CLIP_MIN   # Minimum time between bass hits (seconds)
-MIN_INPUT_VIDEO_LEN = 7
+MIN_INPUT_VIDEO_LEN = 10
 
 date_str = datetime.now().strftime("%Y%m%d_%H%M")
 mp3_filename = "audio.mp3"
