@@ -1,6 +1,6 @@
 # Path to your script (edit if needed)
-export CHAOS_PY="/Users/dhudetz/code/bass_driven_video_gen/bass_video_gen.py"
-export CHAOS_VENV="/Users/dhudetz/code/bass_driven_video_gen/venv/bin/python"
+export GENERATOR_PY="/Users/dhudetz/code/bass_driven_video_gen/src/run.py"
+export VENV_DIR="/Users/dhudetz/code/bass_driven_video_gen/venv/bin/python"
 
 # Run chaos video generator.
 # Usage:
@@ -13,12 +13,12 @@ musicvideo() {
     echo "error: '$dir' is not a directory" >&2
     return 1
   fi
-  if [[ ! -f "$CHAOS_PY" ]]; then
-    echo "error: CHAOS_PY not found at '$CHAOS_PY'" >&2
+  if [[ ! -f "$GENERATOR_PY" ]]; then
+    echo "error: CHAOS_PY not found at '$GENERATOR_PY'" >&2
     return 1
   fi
 
-  local py="$CHAOS_VENV"
+  local py="$VENV_DIR"
   [[ -x "$py" ]] || py="$(command -v python3 || command -v python)"
 
   if [[ -z "$py" ]]; then
@@ -26,7 +26,7 @@ musicvideo() {
     return 1
   fi
 
-  "$py" "$CHAOS_PY" "$dir"
+  "$py" "$GENERATOR_PY" "$dir"
 }
 
 # Optional: tab-complete directories for the first arg
