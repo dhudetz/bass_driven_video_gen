@@ -1,0 +1,11 @@
+# ========= PIPELINE TOGGLES =========
+# ENABLE_BASS_DETECTION     = True
+ENABLE_PLOTTING           = True
+ENABLE_EXTRACT_SEGMENTS   = True
+ENABLE_CONCATENATION      = True
+ENABLE_ADD_AUDIO          = True
+ENABLE_CLEANUP            = True
+
+# ========= CONFIG ===========
+MIN_INPUT_VIDEO_LEN = 10
+DELETE_SMALL_FILES = True

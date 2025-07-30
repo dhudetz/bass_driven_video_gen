@@ -9,10 +9,10 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from pathlib import Path
 import librosa
-import numpy as np
-import scipy.signal
-import scipy.ndimage
 import sys
+from global_config import *
+from bass_detector import BassDetector
+from util import ffprobe_duration
 
 class EditorUserInterface(QWidget):
     def __init__(self):
@@ -28,16 +28,18 @@ class EditorUserInterface(QWidget):
             "LF_MIN_HZ": (20, 500),
             "LF_MAX_HZ": (200, 8000),
             "ONSET_DELTA": (0.01, 1.0),
+            "HOP_LENGTH": (1,2048),
             "RANDOM_CLIP_MIN": (0.001, 5),
             "RANDOM_CLIP_MAX": (5, 60),
             "COOLDOWN": (0.001, 5),
             "MIN_INPUT_VIDEO_LEN": (1, 60)
-        }
-
+        }        
+        
         self.config = {
             "LF_MIN_HZ": 80,
             "LF_MAX_HZ": 5000,
             "ONSET_DELTA": 0.1,
+            "HOP_LENGTH": 256,
             "RANDOM_CLIP_MIN": 0.001,
             "RANDOM_CLIP_MAX": 30,
             "COOLDOWN": 0.001,
@@ -50,6 +52,8 @@ class EditorUserInterface(QWidget):
 
         self._build_ui()
         self.show()
+
+    # ============== SETUP ===============
 
     def _build_ui(self):
         layout = QVBoxLayout()
@@ -95,6 +99,7 @@ class EditorUserInterface(QWidget):
 
         self.setLayout(layout)
 
+    # =============== UPDATE ================
     def _update_config(self, key, value):
         self.config[key] = value
         self._refresh_plot()
@@ -106,46 +111,30 @@ class EditorUserInterface(QWidget):
             self.y, self.sr = librosa.load(self.audio_path, mono=True)
             self._refresh_plot()
 
+    def _get_hit_timestamps(self):
+        detector = BassDetector(self.audio_path)
+        hits, dropped, times, onset_env = detector.detect(self.config)
+
+        # Add a timestamp for the end of the audio clip
+        mp3_dur = ffprobe_duration(self.audio_path)
+        if hits and hits[-1] < mp3_dur:
+            hits.append(mp3_dur)
+        
+        return hits, dropped, times, onset_env
+
     def _refresh_plot(self):
         if self.y is None:
             return
 
-        nyquist = 0.5 * self.sr
-        sos = scipy.signal.butter(
-            4,
-            [self.config['LF_MIN_HZ'] / nyquist, self.config['LF_MAX_HZ'] / nyquist],
-            btype='band',
-            output='sos'
-        )
-        y_filtered = scipy.signal.sosfiltfilt(sos, self.y)
-        y_filtered = np.nan_to_num(y_filtered)
-
-        onset_env = librosa.onset.onset_strength(y=y_filtered, sr=self.sr, hop_length=256)
-        onset_env = scipy.ndimage.median_filter(onset_env, size=5)
-        times = librosa.frames_to_time(np.arange(len(onset_env)), sr=self.sr, hop_length=256)
-
-        onsets = librosa.onset.onset_detect(
-            onset_envelope=onset_env,
-            sr=self.sr,
-            hop_length=256,
-            units='time',
-            backtrack=True,
-            delta=self.config['ONSET_DELTA']
-        )
-
-        kept = []
-        last_time = onsets[0] if onsets.any() else 0
-        for o in onsets:
-            if o - last_time >= self.config["COOLDOWN"]:
-                kept.append(o)
-                last_time = o
-
-        self.bass_hits = kept
-        self.bass_label.setText(f"Detected Bass Hits: {len(kept)}")
+        hits, dropped, times, onset_env = self._get_hit_timestamps()
+        
+        self.bass_hits = hits
+        self.bass_label.setText(f"Detected Bass Hits: {len(hits)}")
 
         self.ax.clear()
         self.ax.plot(times, onset_env, label="Onset Envelope", color='blue')
-        self.ax.vlines(kept, 0, onset_env.max(), color='red', label='Kept', linestyle='-')
+        self.ax.vlines(hits, 0, onset_env.max(), color='red', label='Kept', linestyle='-')
+        self.ax.vlines(dropped, 0, onset_env.max(), color='orange', label='Dropped', linestyle='-')
         self.ax.set_title("Filtered Onsets")
         self.ax.set_xlabel("Time (s)")
         self.ax.legend()
