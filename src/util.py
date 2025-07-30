@@ -1,8 +1,36 @@
-# util.py
-
 import subprocess
 import tempfile
 import matplotlib.pyplot as plt
+import yaml
+from pathlib import Path
+
+# Default path for saving/loading config
+DEFAULT_PATH = Path(__file__).parent / "saved_constants.txt"
+
+def save_config(config: dict, path: Path = DEFAULT_PATH) -> None:
+    """
+    Save a dictionary to a YAML file.
+
+    Args:
+        config (dict): The configuration dictionary to save.
+        path (Path, optional): Path where the YAML file should be written. Defaults to DEFAULT_PATH.
+    """
+    with path.open("w") as f:
+        yaml.dump(config, f, default_flow_style=False)
+
+def load_config(path: Path = DEFAULT_PATH) -> dict:
+    """
+    Load a dictionary from a YAML file.
+
+    Args:
+        path (Path, optional): Path to the YAML config file. Defaults to DEFAULT_PATH.
+
+    Returns:
+        dict: The loaded configuration.
+    """
+    with path.open("r") as f:
+        return yaml.safe_load(f)
+
 
 def run_command(cmd):
     """Run a shell command and return stdout as a decoded string."""

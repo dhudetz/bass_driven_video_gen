@@ -1,0 +1,10 @@
+AUDIO_PATH: !!python/object/apply:pathlib._local.PosixPath
+- /Users/dhudetz/code/bass_driven_video_gen/footage/audio.mp3
+COOLDOWN: 0.001
+HOP_LENGTH: 256
+LF_MAX_HZ: 310
+LF_MIN_HZ: 122
+MIN_INPUT_VIDEO_LEN: 10
+ONSET_DELTA: 0.1999999999999999
+RANDOM_CLIP_MAX: 30
+RANDOM_CLIP_MIN: 0.001

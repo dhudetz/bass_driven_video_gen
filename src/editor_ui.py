@@ -1,5 +1,3 @@
-# editor_ui.py
-
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSlider, QSpinBox, QDoubleSpinBox, QCheckBox, QFileDialog
@@ -12,7 +10,7 @@ import librosa
 import sys
 from global_config import *
 from bass_detector import BassDetector
-from util import ffprobe_duration
+from util import ffprobe_duration, save_config, load_config
 
 class EditorUserInterface(QWidget):
     def __init__(self):
@@ -25,16 +23,15 @@ class EditorUserInterface(QWidget):
 
         # Constants and ranges
         self.param_ranges = {
-            "LF_MIN_HZ": (20, 500),
-            "LF_MAX_HZ": (200, 8000),
+            "LF_MIN_HZ": (1, 8000),
+            "LF_MAX_HZ": (1, 8000),
             "ONSET_DELTA": (0.01, 1.0),
             "HOP_LENGTH": (1,2048),
             "RANDOM_CLIP_MIN": (0.001, 5),
             "RANDOM_CLIP_MAX": (5, 60),
-            "COOLDOWN": (0.001, 5),
-            "MIN_INPUT_VIDEO_LEN": (1, 60)
         }        
         
+        # Default configuration if config file is not loaded
         self.config = {
             "LF_MIN_HZ": 80,
             "LF_MAX_HZ": 5000,
@@ -42,18 +39,34 @@ class EditorUserInterface(QWidget):
             "HOP_LENGTH": 256,
             "RANDOM_CLIP_MIN": 0.001,
             "RANDOM_CLIP_MAX": 30,
-            "COOLDOWN": 0.001,
-            "MIN_INPUT_VIDEO_LEN": 10,
         }
+
+        self._setup()
+
+
+    # ============== SETUP ===============
+
+    def _setup(self):
+        try:
+            self.config = load_config()
+        except:
+            print("[WARNING] Failed to load config. Falling back on defaults.")
+            
+        if "AUDIO_PATH" in self.config.keys():
+            try:
+                self.audio_path = Path(self.config["AUDIO_PATH"])
+                print("[INFO] Loaded audio file from config")
+            except:
+                print("[WARNING] Audio file is no longer there.")
 
         self.bass_hits = []
         self.canvas = FigureCanvas(Figure(figsize=(10, 4)))
         self.ax = self.canvas.figure.add_subplot(111)
 
         self._build_ui()
+        if self.audio_path:
+            self._choose_audio_file(self.audio_path)
         self.show()
-
-    # ============== SETUP ===============
 
     def _build_ui(self):
         layout = QVBoxLayout()
@@ -104,14 +117,16 @@ class EditorUserInterface(QWidget):
         self.config[key] = value
         self._refresh_plot()
 
-    def _choose_audio_file(self):
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select MP3", "", "Audio Files (*.mp3)")
+    def _choose_audio_file(self, file_path: Path):
+        if not file_path:
+            file_path, _ = QFileDialog.getOpenFileName(self, "Select MP3", "", "Audio Files (*.mp3)")
         if file_path:
+            self.config["AUDIO_PATH"] = file_path
             self.audio_path = Path(file_path)
             self.y, self.sr = librosa.load(self.audio_path, mono=True)
             self._refresh_plot()
 
-    def _get_hit_timestamps(self):
+    def _get_bass_detections(self):
         detector = BassDetector(self.audio_path)
         hits, dropped, times, onset_env = detector.detect(self.config)
 
@@ -126,7 +141,7 @@ class EditorUserInterface(QWidget):
         if self.y is None:
             return
 
-        hits, dropped, times, onset_env = self._get_hit_timestamps()
+        hits, dropped, times, onset_env = self._get_bass_detections()
         
         self.bass_hits = hits
         self.bass_label.setText(f"Detected Bass Hits: {len(hits)}")
@@ -141,6 +156,7 @@ class EditorUserInterface(QWidget):
         self.canvas.draw()
 
     def _finish_and_exit(self):
+        save_config(self.config)
         self.close()
 
     def get_final_config(self):

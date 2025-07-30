@@ -33,10 +33,10 @@ class BassDetector:
 
         """
         lf_min_hz = config["LF_MIN_HZ"]
-        lf_max_hz = config["LF_MAX_HZ"]
+        lf_max_hz = max(config["LF_MAX_HZ"], lf_min_hz + 1)
         onset_delta = config["ONSET_DELTA"]
         hop_length = config["HOP_LENGTH"]
-        cooldown = config["COOLDOWN"]
+        cooldown = config["RANDOM_CLIP_MIN"]
 
         y, sr = librosa.load(self.mp3_path, mono=True)
         nyquist = 0.5 * sr
