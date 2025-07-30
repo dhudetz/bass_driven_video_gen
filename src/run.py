@@ -1,6 +1,19 @@
-# chaos_video_gen.py
-
 #!/usr/bin/env python3
+"""
+chaos_video_gen.py
+
+Creates a chaotic video compilation synced to detected bass hits in an audio file.
+Uses random video segments from input videos and aligns cuts to audio onsets.
+
+Modules:
+    - BassDetector: Detects onsets from audio.
+    - VideoCompiler: Compiles video based on those onsets.
+    - Util functions: command wrappers and helpers.
+
+Usage:
+    python chaos_video_gen.py <directory_with_videos_and_audio>
+"""
+
 import random
 import shutil
 import subprocess
@@ -41,11 +54,26 @@ ENABLE_CLEANUP            = True
 
 # ========= BASS DETECTOR =========
 class BassDetector:
+    """Detects onsets (bass hits) from a mono-filtered audio file using librosa."""
+
     def __init__(self, mp3_path: Path, plot_path: Path | None = None):
+        """Initialize the detector with audio path and optional plot path.
+
+        Args:
+            mp3_path (Path): Path to the input MP3 file.
+            plot_path (Path | None): Optional path to save the debug onset plot.
+
+        """
         self.mp3_path = mp3_path
         self.plot_path = plot_path
 
     def detect(self):
+        """Perform band-pass filtering and onset detection on the MP3.
+
+        Returns:
+            list[float]: List of detected onset times (in seconds).
+
+        """
         import librosa
         from scipy.signal import butter, sosfiltfilt
 
@@ -88,8 +116,17 @@ class BassDetector:
 
 # ========= VIDEO COMPILER =========
 class VideoCompiler:
+    """Handles random segment extraction, concatenation, and final video/audio composition."""
+
     def __init__(self, folder: Path, mp3_path: Path, bass_hits: list[float]):
-        """Initialize the video compiler."""
+        """Initializes the VideoCompiler with directory and metadata.
+
+        Args:
+            folder (Path): Directory containing input videos.
+            mp3_path (Path): Path to the audio track (MP3).
+            bass_hits (list[float]): List of time-based cutpoints.
+
+        """
         self.folder = folder
         self.mp3_path = mp3_path
         self.bass_hits = bass_hits
@@ -98,13 +135,15 @@ class VideoCompiler:
         self.segments_dir = folder / "segments"
 
     def collect_videos(self):
-        """Collects videos and caches them."""
+        """Scans the folder for valid video files (.mov), 
+        
+        optionally removing those below the minimum duration.
+
+        """
         for f in self.folder.iterdir():
             if f.name.lower().endswith(".mov") and not f.name.startswith("._"):
                 self.video_files.append(f)
 
-        # Filter out files shorter than a minimum length.
-        # Optionally, you can permanently delete these files to save space.
         for file in tqdm(self.video_files, desc="Validating video files"):
             dur = ffprobe_duration(file)
             if dur is None or dur < MIN_INPUT_VIDEO_LEN:
@@ -113,6 +152,16 @@ class VideoCompiler:
                     file.unlink()
 
     def extract_random_segment(self, video_path: Path, duration: float) -> Path | None:
+        """Extracts a random clip of a given duration from a video.
+
+        Args:
+            video_path (Path): Path to source video.
+            duration (float): Duration of clip in seconds.
+
+        Returns:
+            Path | None: Temporary path to extracted segment, or None on failure.
+
+        """
         vid_dur = ffprobe_duration(video_path)
         if not vid_dur or vid_dur <= 0:
             return None
@@ -141,6 +190,12 @@ class VideoCompiler:
             return None
 
     def extract_segments(self):
+        """Extracts segments for each bass hit interval.
+
+        Returns:
+            list[Path]: Paths to all extracted segments.
+
+        """
         self.segments_dir.mkdir(exist_ok=True)
         random.shuffle(self.video_files)
         clip_idx = 0
@@ -160,6 +215,16 @@ class VideoCompiler:
         return segments
 
     def concatenate_segments(self, segments: list[Path]) -> Path:
+        """
+        Concatenates all video segments into a single file.
+
+        Args:
+            segments (list[Path]): List of segment paths.
+
+        Returns:
+            Path: Path to the concatenated video file.
+
+        """
         file_list_path = self.folder / "file_list.txt"
         with open(file_list_path, "w") as f:
             for seg in segments:
@@ -186,6 +251,13 @@ class VideoCompiler:
         return temp_concat
 
     def add_audio(self, concat_path: Path):
+        """
+        Merges the audio file with the compiled video.
+
+        Args:
+            concat_path (Path): Path to the concatenated video.
+
+        """
         print("[INFO] Adding audio...")
         subprocess.run([
             "ffmpeg", "-y",
@@ -198,11 +270,21 @@ class VideoCompiler:
         ], check=True, capture_output=True)
 
     def cleanup(self, concat_path: Path):
+        """Cleans up intermediate files and folders.
+
+        Args:
+            concat_path (Path): Path to concatenated video file.
+
+        """
         print("[INFO] Cleaning up...")
         concat_path.unlink()
         shutil.rmtree(self.segments_dir)
 
     def compile(self):
+        """Runs the full compilation process:
+
+        Video collection, segment extraction, concatenation, and final audio sync.
+        """
         self.collect_videos()
         if not self.video_files:
             print("[ERROR] No valid videos.")
@@ -216,6 +298,7 @@ class VideoCompiler:
 
 # ========= ENTRY POINT =========
 def run():
+    """Main pipeline that runs the detection and compilation based on input args."""
     if len(sys.argv) < 2:
         print("Usage: python chaos_video_gen.py <video_directory>")
         sys.exit(1)
