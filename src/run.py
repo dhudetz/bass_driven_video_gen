@@ -5,7 +5,6 @@ import random
 import shutil
 import subprocess
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -13,7 +12,7 @@ import numpy as np
 import scipy.ndimage
 from tqdm import tqdm
 
-from util import run_command, plot_onsets
+from util import plot_onsets, safe_tmp, ffprobe_duration, ffprobe_stream_info
 
 # ========= CONFIG =========
 LF_MIN_HZ       = 80
@@ -38,37 +37,6 @@ ENABLE_EXTRACT_SEGMENTS   = True
 ENABLE_CONCATENATION      = True
 ENABLE_ADD_AUDIO          = True
 ENABLE_CLEANUP            = True
-
-def safe_tmp(suffix):
-    return tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=tempfile.gettempdir()).name
-
-def ffprobe_duration(path):
-    cmd = [
-        "ffprobe", "-v", "error", "-show_entries", "format=duration",
-        "-of", "default=noprint_wrappers=1:nokey=1", str(path)
-    ]
-    try:
-        return float(run_command(cmd).strip())
-    except Exception:
-        return None
-
-def ffprobe_stream_info(path):
-    cmd = [
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "stream=r_frame_rate,avg_frame_rate",
-        "-of", "default=noprint_wrappers=1:nokey=1",
-        str(path)
-    ]
-    try:
-        lines = run_command(cmd).splitlines()
-        for line in lines:
-            if '/' in line:
-                num, den = line.split('/')
-                return {"r_fps": float(num) / float(den)}
-    except Exception:
-        pass
-    return {"r_fps": 30.0}
 
 
 # ========= BASS DETECTOR =========

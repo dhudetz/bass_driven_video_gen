@@ -1,6 +1,7 @@
 # util.py
 
 import subprocess
+import tempfile
 import matplotlib.pyplot as plt
 
 def run_command(cmd):
@@ -22,3 +23,34 @@ def plot_onsets(times, onset_env, kept_onsets, dropped_onsets, plot_path):
     plt.tight_layout()
     plt.savefig(plot_path)
     plt.close()
+
+def safe_tmp(suffix):
+    return tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=tempfile.gettempdir()).name
+
+def ffprobe_duration(path):
+    cmd = [
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1", str(path)
+    ]
+    try:
+        return float(run_command(cmd).strip())
+    except Exception:
+        return None
+
+def ffprobe_stream_info(path):
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "stream=r_frame_rate,avg_frame_rate",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(path)
+    ]
+    try:
+        lines = run_command(cmd).splitlines()
+        for line in lines:
+            if '/' in line:
+                num, den = line.split('/')
+                return {"r_fps": float(num) / float(den)}
+    except Exception:
+        pass
+    return {"r_fps": 30.0}
