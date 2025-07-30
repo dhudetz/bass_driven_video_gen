@@ -21,6 +21,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from editor_ui import launch_editor_ui
+
 import numpy as np
 import scipy.ndimage
 from tqdm import tqdm
@@ -298,30 +300,14 @@ class VideoCompiler:
 
 # ========= ENTRY POINT =========
 def run():
-    """Main pipeline that runs the detection and compilation based on input args."""
-    if len(sys.argv) < 2:
-        print("Usage: python chaos_video_gen.py <video_directory>")
-        sys.exit(1)
+    config, hits, audio_path = launch_editor_ui()
+    if not audio_path or not hits:
+        print("No audio or hits detected. Exiting.")
+        return
 
-    folder = Path(sys.argv[1]).absolute()
-    mp3_path = folder / mp3_filename
-    plot_path = folder / f"bass_plot_{LF_MIN_HZ}_{LF_MAX_HZ}.png"
-    hits_path = folder / "bass_hits.txt"
+    folder = audio_path.parent
 
-    if ENABLE_BASS_DETECTION:
-        print("[INFO] Detecting bass hits...")
-        hits = BassDetector(mp3_path, plot_path).detect()
-        mp3_dur = ffprobe_duration(mp3_path)
-        if hits and hits[-1] < mp3_dur:
-            hits.append(mp3_dur)
-        with open(hits_path, "w") as f:
-            for h in hits:
-                f.write(f"{h}\n")
-    else:
-        with open(hits_path) as f:
-            hits = [float(l.strip()) for l in f if l.strip()]
-
-    VideoCompiler(folder, mp3_path, hits).compile()
+    VideoCompiler(folder, audio_path, hits).compile()
 
 
 if __name__ == "__main__":
