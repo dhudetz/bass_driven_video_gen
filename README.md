@@ -8,4 +8,5 @@ generate music videos that randomly splice .MOV clips to the bass hits of an aud
 * User interface -> design bass hit profile then compile
    * stretch goal on UI: thread each compilation to make multiple instances of the video at once
 * Save configurations as its own format load different formats
+* (refactor) Modularize the bass detector, give alternative options for determing cut points of the video. Other modules to replace the bass detector would be a CV or LLM based decision maker.
   

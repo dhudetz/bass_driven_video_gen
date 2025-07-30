@@ -15,11 +15,11 @@ from tqdm import tqdm
 
 # ========= CONFIG =========
 LF_MIN_HZ       = 80        # Lower bound for energy capture
-LF_MAX_HZ       = 1000     # Upper bound for energy capture
+LF_MAX_HZ       = 5000     # Upper bound for energy capture
 N_FFT           = 1024
 HOP_LENGTH      = 256
-ONSET_DELTA     = 0.3   # Onset detection threshold
-RANDOM_CLIP_MIN = 0.8   # Min clip length
+ONSET_DELTA     = 0.1   # Onset detection threshold
+RANDOM_CLIP_MIN = 0.001   # Min clip length
 RANDOM_CLIP_MAX = 30     # Max clip length
 COOLDOWN        = RANDOM_CLIP_MIN   # Minimum time between bass hits (seconds)
 
@@ -126,7 +126,15 @@ def detect_bass_hits(mp3_path, plot_path=None):
     if plot_path:
         plt.figure(figsize=(12, 4))
         plt.plot(times, onset_env, label="Bass Onset Envelope", color='blue')
-        plt.vlines(kept_onsets, 0, onset_env.max(), color='red', alpha=0.8, linestyle='-', label="Kept Bass Hits")
+        plt.vlines(
+            kept_onsets,
+            0, 
+            onset_env.max(), 
+            color='red', 
+            alpha=0.8, 
+            linestyle='-', 
+            label="Kept Bass Hits"
+        )
         if dropped_onsets:
             plt.vlines(dropped_onsets, 0, onset_env.max(), color='orange', alpha=0.8, linestyle='--', label="Dropped Bass Hits")
         plt.xlabel("Time (s)")
@@ -190,11 +198,15 @@ def main():
         print(f"[ERROR] MP3 file not found: {mp3_path}")
         sys.exit(1)
 
-    video_files = [
-        video_folder / f
-        for f in video_folder.iterdir()
-        if str(f).lower().endswith(".mov") and not str(f).startswith("._")
-    ]
+    # Collect all .mov files in the folder
+    video_files = []
+    for f in video_folder.iterdir():
+        # TODO: There is a bug here where the "._" files are slipping through.
+        if f.name.lower().endswith(".mov") and not f.name.startswith("._"):
+            print(f"Including: {f.name}")
+            video_files.append(f)
+        else:
+            print(f"Excluding: {f.name}")
     if not video_files:
         print("[ERROR] No valid .mov files found.")
         sys.exit(1)
