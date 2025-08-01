@@ -22,7 +22,7 @@ class BassDetector:
         """
         self.mp3_path = mp3_path
 
-    def detect(self, config: dict[str, float | int]):
+    def detect(self, config: dict[str, float | int]) -> list[float]:
         """Perform band-pass filtering and onset detection on the MP3.
 
         Args:
