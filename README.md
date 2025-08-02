@@ -1,5 +1,5 @@
 # bass_driven_video_gen
-generate music videos that randomly splice .MOV clips to the bass hits of an audio clip into an MP4 file
+generate music videos that randomly splice .MOV and .Mp4 clips to the bass hits of an audio clip into an MP4 file
 
 ## Remaining Items
 * Feature: get a proxy for the amount of motion in each frame. Use this to line up high energy clips with high energy parts of the music.
