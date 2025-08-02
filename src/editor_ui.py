@@ -13,7 +13,7 @@ from bass_detector import BassDetector
 from util import ffprobe_duration, save_config, load_config
 
 # =========== CONFIG ============
-DEBOUNCE_TIMEOUT = 100 # ms
+DEBOUNCE_TIMEOUT = 250 # ms
 
 # ========= WORKER CLASS ============
 class DetectionWorker(QObject):
@@ -194,12 +194,20 @@ class EditorUserInterface(QWidget):
             file_path (Path, optional): Pre-selected path or dialog fallback.
         """
         if not file_path:
-            file_path, _ = QFileDialog.getOpenFileName(self, "Select MP3", "", "Audio Files (*.mp3)")
-        if file_path:
-            self.audio_path = Path(file_path)
-            self.config["AUDIO_PATH"] = str(file_path)
-            self.y, self.sr = librosa.load(self.audio_path, mono=True)
-            self._refresh_plot()
+            file_path_str, _ = QFileDialog.getOpenFileName(self, "Select MP3", "", "Audio Files (*.mp3)")
+            if not file_path_str:
+                return  # User cancelled
+            file_path = Path(file_path_str)
+
+        if not file_path.exists():
+            print(f"[ERROR] Audio file not found: {file_path}")
+            return
+
+        self.audio_path = file_path
+        self.config["AUDIO_PATH"] = str(file_path)
+        self.y, self.sr = librosa.load(self.audio_path, mono=True)
+        self._refresh_plot()
+
 
     def _refresh_plot(self):
         """Starts worker thread to run detection and prepare plot data."""
