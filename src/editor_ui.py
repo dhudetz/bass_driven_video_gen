@@ -208,7 +208,6 @@ class EditorUserInterface(QWidget):
         self.y, self.sr = librosa.load(self.audio_path, mono=True)
         self._refresh_plot()
 
-
     def _refresh_plot(self):
         """Starts worker thread to run detection and prepare plot data."""
         if self.audio_path is None or self.y is None:
