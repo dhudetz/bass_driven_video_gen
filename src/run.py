@@ -40,14 +40,7 @@ class VideoCompiler:
     """Handles random segment extraction, concatenation, and final video/audio composition."""
 
     def __init__(self, config: dict, folder: Path, mp3_path: Path, bass_hits: list[float]):
-        """Initializes the VideoCompiler with directory and metadata.
-
-        Args:
-            folder (Path): Directory containing input videos.
-            mp3_path (Path): Path to the audio track (MP3).
-            bass_hits (list[float]): List of time-based cutpoints.
-
-        """
+        """Initializes the VideoCompiler with directory and metadata."""
         self.config = config
         self.folder = folder
         self.mp3_path = mp3_path
@@ -57,12 +50,16 @@ class VideoCompiler:
         self.segments_dir = folder / "segments"
 
     def collect_videos(self):
-        """Scans the folder for valid video files (.mov and .mp4), 
-        optionally removing those below the minimum duration.
-        """
+        """Scans the folder for valid video files (.mov and .mp4),
+        excluding those starting with 'compiled', and optionally removes short ones."""
         valid_extensions = {".mov", ".mp4"}
         for f in self.folder.iterdir():
-            if f.suffix.lower() in valid_extensions and not f.name.startswith("._"):
+            name_lower = f.name.lower()
+            if (
+                f.suffix.lower() in valid_extensions
+                and not name_lower.startswith("._")
+                and not name_lower.startswith("compiled")
+            ):
                 self.video_files.append(f)
 
         for file in tqdm(self.video_files[:], desc="Validating video files"):
@@ -72,18 +69,8 @@ class VideoCompiler:
                 if DELETE_SMALL_FILES:
                     file.unlink()
 
-
     def extract_random_segment(self, video_path: Path, duration: float) -> Path | None:
-        """Extracts a random clip of a given duration from a video.
-
-        Args:
-            video_path (Path): Path to source video.
-            duration (float): Duration of clip in seconds.
-
-        Returns:
-            Path | None: Temporary path to extracted segment, or None on failure.
-
-        """
+        """Extracts a random clip of a given duration from a video."""
         vid_dur = ffprobe_duration(video_path)
         if not vid_dur or vid_dur <= 0:
             return None
@@ -112,12 +99,7 @@ class VideoCompiler:
             return None
 
     def extract_segments(self):
-        """Extracts segments for each bass hit interval.
-
-        Returns:
-            list[Path]: Paths to all extracted segments.
-
-        """
+        """Extracts segments for each bass hit interval."""
         self.segments_dir.mkdir(exist_ok=True)
         random.shuffle(self.video_files)
         clip_idx = 0
@@ -139,16 +121,7 @@ class VideoCompiler:
         return segments
 
     def concatenate_segments(self, segments: list[Path]) -> Path:
-        """
-        Concatenates all video segments into a single file.
-
-        Args:
-            segments (list[Path]): List of segment paths.
-
-        Returns:
-            Path: Path to the concatenated video file.
-
-        """
+        """Concatenates all video segments into a single file."""
         file_list_path = self.folder / "file_list.txt"
         with open(file_list_path, "w") as f:
             for seg in segments:
@@ -175,13 +148,7 @@ class VideoCompiler:
         return temp_concat
 
     def add_audio(self, concat_path: Path):
-        """
-        Merges the audio file with the compiled video.
-
-        Args:
-            concat_path (Path): Path to the concatenated video.
-
-        """
+        """Merges the audio file with the compiled video."""
         print("[INFO] Adding audio...")
         subprocess.run([
             "ffmpeg", "-y",
@@ -194,21 +161,13 @@ class VideoCompiler:
         ], check=True, capture_output=True)
 
     def cleanup(self, concat_path: Path):
-        """Cleans up intermediate files and folders.
-
-        Args:
-            concat_path (Path): Path to concatenated video file.
-
-        """
+        """Cleans up intermediate files and folders."""
         print("[INFO] Cleaning up...")
         concat_path.unlink()
         shutil.rmtree(self.segments_dir)
 
     def compile(self):
-        """Runs the full compilation process:
-
-        Video collection, segment extraction, concatenation, and final audio sync.
-        """
+        """Runs the full compilation process."""
         self.collect_videos()
         if not self.video_files:
             print("[ERROR] No valid videos.")
@@ -228,7 +187,6 @@ def run():
 
     folder = args.folder.resolve()
 
-    # Launch UI — still returns config, hits, and audio_path
     config, hits, audio_path = launch_editor_ui()
     if not audio_path or not hits:
         print("No audio or hits detected. Exiting.")
