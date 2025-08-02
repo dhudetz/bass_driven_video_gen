@@ -57,21 +57,21 @@ class VideoCompiler:
         self.segments_dir = folder / "segments"
 
     def collect_videos(self):
-        """Scans the folder for valid video files (.mov), 
-        
+        """Scans the folder for valid video files (.mov and .mp4), 
         optionally removing those below the minimum duration.
-
         """
+        valid_extensions = {".mov", ".mp4"}
         for f in self.folder.iterdir():
-            if f.name.lower().endswith(".mov") and not f.name.startswith("._"):
+            if f.suffix.lower() in valid_extensions and not f.name.startswith("._"):
                 self.video_files.append(f)
 
-        for file in tqdm(self.video_files, desc="Validating video files"):
+        for file in tqdm(self.video_files[:], desc="Validating video files"):
             dur = ffprobe_duration(file)
             if dur is None or dur < MIN_INPUT_VIDEO_LEN:
                 self.video_files.remove(file)
                 if DELETE_SMALL_FILES:
                     file.unlink()
+
 
     def extract_random_segment(self, video_path: Path, duration: float) -> Path | None:
         """Extracts a random clip of a given duration from a video.
