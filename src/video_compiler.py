@@ -66,15 +66,21 @@ class VideoCompiler:
         self._weights: list[float] = []
 
     def collect_videos(self):
-        """Scan folder for valid videos, cache durations, optionally remove short ones, build selection weights."""
+        """Scans the folder for valid video files (.mov and .mp4),
+        excluding those starting with 'compiled', and optionally removes short ones.
+        Also caches each video's duration and builds a length-weighted selection table so
+        that longer videos are proportionally more likely to be picked when drawing clips."""
         valid_extensions = {".mov", ".mp4"}
-
         # Stage 1: discover candidates
-        candidates: list[Path] = [
-            f for f in self.folder.iterdir()
-            if f.suffix.lower() in valid_extensions
-            and not f.name.lower().startswith(("._", "compiled"))
-        ]
+        candidates: list[Path] = []
+        for f in self.folder.iterdir():
+            name_lower = f.name.lower()
+            if (
+                f.suffix.lower() in valid_extensions
+                and not name_lower.startswith("._")
+                and not name_lower.startswith("compiled")
+            ):
+                candidates.append(f)
 
         # Stage 2: validate + cache durations, optionally prune short files
         for file in tqdm(candidates, desc="Validating video files"):
@@ -89,17 +95,31 @@ class VideoCompiler:
             self.video_files.append(file)
             self._duration_map[file] = float(dur)
 
-        # Build weights aligned to self.video_files, biasing by duration
+        # Build weights aligned to self.video_files. We bias selection by absolute duration,
+        # then apply a small floor so tiny-but-valid clips still have a non-zero chance.
         if self.video_files:
             durations = [self._duration_map[p] for p in self.video_files]
             min_floor = 1e-6
             self._weights = [max(d, min_floor) for d in durations]
 
+    def extract_random_segment(
+        self, video_path: Path, duration: float, vid_dur: float | None = None
+    ) -> Path | None:
+        """
+        Extracts a random clip of a given duration from a video.
 
-    def extract_random_segment(self, video_path: Path, duration: float, vid_dur: float | None = None) -> Path | None:
-        """Extracts a random clip of a given duration from a video.
-        Accepts an optional cached duration to avoid redundant probes.
-        Trimming is precise to avoid extra frames or overshoot."""
+        Args:
+            video_path (Path): Path to the source video file.
+            duration (float): Desired length of the extracted clip in seconds.
+            vid_dur (float | None): Optional cached video duration to avoid probing.
+
+        Returns:
+            Path | None: Path to the extracted clip, or None if extraction failed.
+
+        Notes:
+            - Trimming is precise to avoid extra frames or overshoot.
+            - If vid_dur is not provided, the function will probe the video to get its duration.
+        """
         if vid_dur is None:
             vid_dur = ffprobe_duration(video_path)
         if not vid_dur or vid_dur <= 0:
