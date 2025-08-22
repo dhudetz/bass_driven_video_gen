@@ -55,6 +55,7 @@ def plot_onsets(times, onset_env, kept_onsets, dropped_onsets, plot_path):
 def safe_tmp(suffix):
     return tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=tempfile.gettempdir()).name
 
+# TODO consider using formatted commands similar to the ffmpeg formatting
 def ffprobe_duration(path):
     cmd = [
         "ffprobe", "-v", "error", "-show_entries", "format=duration",

@@ -77,6 +77,7 @@ class EditorUserInterface(QWidget):
             "RANDOM_CLIP_MAX": (5, 60),
         }
 
+        # Default configs to be used if config file is not saved.
         self.config = {
             "LF_MIN_HZ": 80,
             "LF_MAX_HZ": 5000,
