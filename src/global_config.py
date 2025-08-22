@@ -9,3 +9,4 @@ ENABLE_CLEANUP            = True
 # ========= CONFIG ===========
 MIN_INPUT_VIDEO_LEN = 5
 DELETE_SMALL_FILES = True
+DEBOUNCE_TIMEOUT = 250 # ms

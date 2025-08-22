@@ -150,7 +150,10 @@ class VideoCompiler:
 
     def extract_segments(self):
         """Extracts segments for each bass hit interval.
-        Uses a length-weighted random picker so short source videos are drawn less often."""
+
+        Uses a length-weighted random picker so short source videos are drawn less often.
+
+        """
         self.segments_dir.mkdir(exist_ok=True)
         segments = []
         random_clip_min = self.config["RANDOM_CLIP_MIN"]

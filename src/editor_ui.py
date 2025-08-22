@@ -11,9 +11,7 @@ import sys
 from global_config import *
 from bass_detector import BassDetector
 from util import ffprobe_duration, save_config, load_config
-
-# =========== CONFIG ============
-DEBOUNCE_TIMEOUT = 250 # ms
+from global_config import DEBOUNCE_TIMEOUT
 
 # ========= WORKER CLASS ============
 class DetectionWorker(QObject):
@@ -68,6 +66,7 @@ class EditorUserInterface(QWidget):
         self.bass_hits = []
         self.thread = None
         self.worker = None
+        self._success = False  # default to 1, meaning user closed manually
 
         self.param_ranges = {
             "LF_MIN_HZ": (1, 8000),
@@ -87,9 +86,9 @@ class EditorUserInterface(QWidget):
             "RANDOM_CLIP_MAX": 30,
         }
 
-        self._setup()
+        self._init_window()
 
-    def _setup(self):
+    def _init_window(self):
         """Loads configuration and builds the UI."""
         try:
             self.config = load_config()
@@ -153,7 +152,7 @@ class EditorUserInterface(QWidget):
         layout.addWidget(file_btn)
 
         run_btn = QPushButton("Generate")
-        run_btn.clicked.connect(self._finish_and_exit)
+        run_btn.clicked.connect(self._on_generate_clicked)
         layout.addWidget(run_btn)
 
         self.setLayout(layout)
@@ -248,6 +247,11 @@ class EditorUserInterface(QWidget):
         self.ax.legend()
         self.canvas.draw()
 
+    def _on_generate_clicked(self):
+        """Handles Generate button click."""
+        self._success = True  # indicate generate was clicked
+        self._finish_and_exit()
+
     def _finish_and_exit(self):
         """Saves the current config and closes the UI."""
         save_config(self.config)
@@ -259,16 +263,17 @@ class EditorUserInterface(QWidget):
         Returns:
             tuple: (config, bass_hits, audio_path)
         """
-        return self.config, self.bass_hits, self.audio_path
+        return self.config, self.bass_hits, self.audio_path, self._success
 
 
 def launch_editor_ui():
     """Launches the main PyQt6 application.
 
     Returns:
-        tuple: Final configuration, bass hit times, and selected audio path.
+        tuple | None: (config, bass_hits, audio_path, exit_flag) if completed, None if canceled/closed
     """
     app = QApplication(sys.argv)
-    window = EditorUserInterface()
+    editor_ui = EditorUserInterface()
     app.exec()
-    return window.get_final_config()
+
+    return editor_ui.get_final_config()

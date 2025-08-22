@@ -24,18 +24,27 @@ from video_compiler import VideoCompiler
 
 # ========= ENTRY POINT =========
 def main():
+    """Entry point for the Chaos Video Pipeline Runner.
+
+    Parses folder argument, launches the editor UI for configuration, and runs the video compiler.
+    """
     parser = argparse.ArgumentParser(description="Chaos Video Pipeline Runner")
     parser.add_argument("folder", type=Path, help="Path to the folder containing video files")
     args = parser.parse_args()
 
     folder = args.folder.resolve()
 
-    config, hits, audio_path = launch_editor_ui()
-    if not audio_path or not hits:
-        print("No audio or hits detected. Exiting.")
+    # GUI pops up on entry for selecting generator settings.
+    config, bass_hits, audio_path, _success = launch_editor_ui()
+
+    # Exit if editor was closed or returned invalid values.
+    if not _success:
+        print("Editor closed or invalid input. Exiting.")
         return
 
-    VideoCompiler(config, folder, audio_path, hits).compile()
+    # Run the video compiler; progress is visible in the CLI.
+    video_compiler = VideoCompiler(config, folder, audio_path, bass_hits)
+    video_compiler.compile()
 
 
 if __name__ == "__main__":
