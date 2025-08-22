@@ -1,36 +1,3 @@
-"""
-Pipeline Overview:
-
-┌─────────────┐
-│ Segment     │
-│ Durations   │
-└─────┬───────┘
-      ↓
-┌─────────────┐
-│ Pick Random │
-│ Video Clips │
-└─────┬───────┘
-      ↓
-┌─────────────┐
-│ Extract     │
-│ Segments    │
-└─────┬───────┘
-      ↓
-┌─────────────┐
-│ Concatenate │
-│ Segments    │
-└─────┬───────┘
-      ↓
-┌─────────────┐
-│ Add Audio   │
-└─────┬───────┘
-      ↓
-┌─────────────┐
-│ Final Video │
-└─────────────┘
-"""
-
-
 import random
 import shutil
 import subprocess
@@ -40,7 +7,6 @@ from global_config import *
 from tqdm import tqdm
 
 from util import safe_tmp, ffprobe_duration, ffprobe_stream_info
-
 
 # ========= CONSTANTS =========
 date_str = datetime.now().strftime("%Y%m%d_%H%M")
@@ -64,6 +30,8 @@ class VideoCompiler:
         self._duration_map: dict[Path, float] = {}
         # Corresponding weights (aligned to self.video_files) used for weighted selection rolls.
         self._weights: list[float] = []
+        # Track cumulative timing error for drift compensation
+        self._cumulative_error: float = 0.0
 
     def collect_videos(self):
         """Scans the folder for valid video files (.mov and .mp4),
@@ -72,15 +40,11 @@ class VideoCompiler:
         that longer videos are proportionally more likely to be picked when drawing clips."""
         valid_extensions = {".mov", ".mp4"}
         # Stage 1: discover candidates
-        candidates: list[Path] = []
-        for f in self.folder.iterdir():
-            name_lower = f.name.lower()
-            if (
-                f.suffix.lower() in valid_extensions
-                and not name_lower.startswith("._")
-                and not name_lower.startswith("compiled")
-            ):
-                candidates.append(f)
+        candidates: list[Path] = [
+            f for f in self.folder.iterdir()
+            if f.suffix.lower() in valid_extensions
+            and not f.name.lower().startswith(("._", "compiled"))
+        ]
 
         # Stage 2: validate + cache durations, optionally prune short files
         for file in tqdm(candidates, desc="Validating video files"):
@@ -104,7 +68,7 @@ class VideoCompiler:
 
     def extract_random_segment(
         self, video_path: Path, duration: float, vid_dur: float | None = None
-    ) -> Path | None:
+    ) -> tuple[Path | None, float]:
         """
         Extracts a random clip of a given duration from a video.
 
@@ -114,7 +78,7 @@ class VideoCompiler:
             vid_dur (float | None): Optional cached video duration to avoid probing.
 
         Returns:
-            Path | None: Path to the extracted clip, or None if extraction failed.
+            tuple[Path | None, float]: Path to the extracted clip (or None if failed) and the actual duration.
 
         Notes:
             - Trimming is precise to avoid extra frames or overshoot.
@@ -123,7 +87,7 @@ class VideoCompiler:
         if vid_dur is None:
             vid_dur = ffprobe_duration(video_path)
         if not vid_dur or vid_dur <= 0:
-            return None
+            return None, 0.0
 
         # Ensure we never exceed video length
         duration = min(duration, vid_dur)
@@ -132,46 +96,56 @@ class VideoCompiler:
 
         cmd = [
             "ffmpeg", "-y",
+            "-ss", f"{start_time:.6f}",  # seek before input for speed
             "-i", str(video_path),       # input
-            "-ss", f"{start_time:.3f}",  # seek after input for accuracy
-            "-t", f"{duration:.3f}",     # exact duration
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "14",
-            "-pix_fmt", "yuv420p",
-            "-movflags", "+faststart",
-            "-avoid_negative_ts", "make_zero",  # avoid timestamp drift
+            "-t", f"{duration:.6f}",     # requested duration
+            "-c:v", "copy",              # no video re-encoding
+            "-c:a", "copy",              # no audio re-encoding
+            "-avoid_negative_ts", "make_zero",  # ensure consistent timestamps
+            "-map", "0:v:0", "-map", "0:a?",    # include video and optional audio
             seg_path
         ]
         try:
             subprocess.run(cmd, check=True, capture_output=True)
-            return Path(seg_path)
+            # Measure actual duration of the extracted clip
+            actual_dur = ffprobe_duration(seg_path) or 0.0
+            return Path(seg_path), actual_dur
         except subprocess.CalledProcessError:
-            return None
-
+            return None, 0.0
 
     def extract_segments(self):
-        """Extracts segments for each bass hit interval.
+        """Extracts segments for each bass hit interval, compensating for timing drift.
 
         Uses a length-weighted random picker so short source videos are drawn less often.
-
+        Tracks cumulative timing error and adjusts segment durations to maintain sync.
         """
         self.segments_dir.mkdir(exist_ok=True)
         segments = []
         random_clip_min = self.config["RANDOM_CLIP_MIN"]
         random_clip_max = self.config["RANDOM_CLIP_MAX"]
+        self._cumulative_error = 0.0  # Reset cumulative error
 
         for i in tqdm(range(len(self.bass_hits) - 1), desc="Extracting segments"):
-            dur = max(random_clip_min, min(self.bass_hits[i + 1] - self.bass_hits[i], random_clip_max))
+            # Calculate ideal segment duration from bass hits
+            ideal_dur = max(random_clip_min, min(self.bass_hits[i + 1] - self.bass_hits[i], random_clip_max))
+            # Adjust for cumulative error to keep total duration in sync
+            adjusted_dur = ideal_dur - self._cumulative_error
 
-            # Length-weighted roll: longer videos have proportionally higher probability.
-            # We roll per segment to avoid repeating the same short clip disproportionately.
+            # Select video with length-weighted probability
             chosen_video = random.choices(self.video_files, weights=self._weights, k=1)[0]
             chosen_vid_dur = self._duration_map.get(chosen_video)
 
+            # Extract segment
             seg_path = self.segments_dir / f"seg_{i:04d}.mp4"
-            seg_file = self.extract_random_segment(chosen_video, dur, vid_dur=chosen_vid_dur)
+            seg_file, actual_dur = self.extract_random_segment(chosen_video, adjusted_dur, vid_dur=chosen_vid_dur)
             if seg_file:
                 shutil.move(seg_file, seg_path)
                 segments.append(seg_path)
+                # Update cumulative error (positive if clip is too long, negative if too short)
+                self._cumulative_error += (actual_dur - ideal_dur)
+            else:
+                # If extraction fails, adjust error to maintain sync
+                self._cumulative_error -= ideal_dur
 
         return segments
 
