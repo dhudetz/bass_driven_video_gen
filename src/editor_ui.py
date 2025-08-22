@@ -78,7 +78,7 @@ class EditorUserInterface(QWidget):
         }
 
         # Default configs to be used if config file is not saved.
-        self.config = {
+        self.audio_detector_config = {
             "LF_MIN_HZ": 80,
             "LF_MAX_HZ": 5000,
             "ONSET_DELTA": 0.1,
@@ -92,13 +92,13 @@ class EditorUserInterface(QWidget):
     def _init_window(self):
         """Loads configuration and builds the UI."""
         try:
-            self.config = load_config()
+            self.audio_detector_config = load_config()
         except Exception:
             print("[WARNING] Failed to load config. Using defaults.")
 
-        if "AUDIO_PATH" in self.config:
+        if "AUDIO_PATH" in self.audio_detector_config:
             try:
-                self.audio_path = Path(self.config["AUDIO_PATH"])
+                self.audio_path = Path(self.audio_detector_config["AUDIO_PATH"])
                 print("[INFO] Loaded audio file from config")
             except Exception:
                 print("[WARNING] Audio path in config is invalid.")
@@ -132,14 +132,14 @@ class EditorUserInterface(QWidget):
             if isinstance(min_val, int) and isinstance(max_val, int):
                 spin = QSpinBox()
                 spin.setRange(min_val, max_val)
-                spin.setValue(self.config[key])
+                spin.setValue(self.audio_detector_config[key])
                 spin.valueChanged.connect(lambda val, k=key: self._update_config(k, val))
             else:
                 spin = QDoubleSpinBox()
                 spin.setRange(min_val, max_val)
                 spin.setSingleStep(0.01)
                 spin.setDecimals(4)
-                spin.setValue(self.config[key])
+                spin.setValue(self.audio_detector_config[key])
                 spin.valueChanged.connect(lambda val, k=key: self._update_config(k, val))
 
             box.addWidget(spin)
@@ -158,9 +158,9 @@ class EditorUserInterface(QWidget):
 
         self.setLayout(layout)
 
-    def _update_config(self, key, value):
+    def _update_config(self, key: str, value: float):
         """Updates configuration and triggers debounced refresh."""
-        self.config[key] = value
+        self.audio_detector_config[key] = value
         self._debounce_refresh()
 
     def _debounce_refresh(self):
@@ -179,7 +179,7 @@ class EditorUserInterface(QWidget):
             self.thread.quit()
             self.thread.wait()
 
-        self.worker = DetectionWorker(self.audio_path, dict(self.config))
+        self.worker = DetectionWorker(self.audio_path, dict(self.audio_detector_config))
         self.thread = QThread()
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
@@ -204,7 +204,7 @@ class EditorUserInterface(QWidget):
             return
 
         self.audio_path = file_path
-        self.config["AUDIO_PATH"] = str(file_path)
+        self.audio_detector_config["AUDIO_PATH"] = str(file_path)
         self.y, self.sr = librosa.load(self.audio_path, mono=True)
         self._refresh_plot()
 
@@ -218,7 +218,7 @@ class EditorUserInterface(QWidget):
             self.thread.quit()
             self.thread.wait()
 
-        self.worker = DetectionWorker(self.audio_path, dict(self.config))
+        self.worker = DetectionWorker(self.audio_path, dict(self.audio_detector_config))
         self.thread = QThread()
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
@@ -255,7 +255,7 @@ class EditorUserInterface(QWidget):
 
     def _finish_and_exit(self):
         """Saves the current config and closes the UI."""
-        save_config(self.config)
+        save_config(self.audio_detector_config)
         self.close()
 
     def get_final_config(self):
@@ -264,7 +264,7 @@ class EditorUserInterface(QWidget):
         Returns:
             tuple: (config, bass_hits, audio_path)
         """
-        return self.config, self.bass_hits, self.audio_path, self._success
+        return self.audio_detector_config, self.bass_hits, self.audio_path, self._success
 
 
 def launch_editor_ui():

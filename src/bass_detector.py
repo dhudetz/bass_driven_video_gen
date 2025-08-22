@@ -28,7 +28,7 @@ class BassDetector:
                 - LF_MAX_HZ: Maximum frequency to detect (Hz, typically 150 Hz)
                 - ONSET_DELTA: Sensitivity threshold for detecting onsets (smaller = more sensitive)
                 - HOP_LENGTH: Number of samples between successive analysis frames
-                - COOLDOWN: Minimum seconds between consecutive hits to avoid duplicates
+                - RANDOM_CLIP_MIN: Minimum seconds between consecutive hits to avoid duplicates
 
         Returns:
             list[float]: Tuple containing:
@@ -45,7 +45,7 @@ class BassDetector:
         # --- Step 2: Onset detection parameters ---
         onset_sensitivity = config.get("ONSET_DELTA", 0.2)  # Smaller delta = more sensitive, may detect noise
         hop_length = config.get("HOP_LENGTH", 512)          # Number of audio samples per analysis frame
-        min_hit_spacing = config.get("COOLDOWN", 0.25)      # Minimum seconds between consecutive hits
+        min_hit_spacing = config.get("RANDOM_CLIP_MIN", 0.25)      # Minimum seconds between consecutive hits
 
         # --- Step 3: Load the audio signal ---
         # sr=None ensures we load the audio at its native sample rate to avoid timing drift.

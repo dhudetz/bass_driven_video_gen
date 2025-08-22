@@ -7,6 +7,7 @@ from pathlib import Path
 # Default path for saving/loading config
 DEFAULT_PATH = Path(__file__).parent / "saved_constants.txt"
 
+
 def save_config(config: dict, path: Path = DEFAULT_PATH) -> None:
     """
     Save a dictionary to a YAML file.
@@ -18,15 +19,16 @@ def save_config(config: dict, path: Path = DEFAULT_PATH) -> None:
     with path.open("w") as f:
         yaml.dump(config, f, default_flow_style=False)
 
+
 def load_config(path: Path = DEFAULT_PATH) -> dict:
-    """
-    Load a dictionary from a YAML file.
+    """Load a dictionary from a YAML file.
 
     Args:
         path (Path, optional): Path to the YAML config file. Defaults to DEFAULT_PATH.
 
     Returns:
         dict: The loaded configuration.
+
     """
     with path.open("r") as f:
         return yaml.safe_load(f)
@@ -36,6 +38,7 @@ def run_command(cmd):
     """Run a shell command and return stdout as a decoded string."""
     res = subprocess.run(cmd, check=True, capture_output=True)
     return res.stdout.decode("utf-8", errors="ignore")
+
 
 def plot_onsets(times, onset_env, kept_onsets, dropped_onsets, plot_path):
     """Save a plot visualizing detected bass hits."""
@@ -52,8 +55,10 @@ def plot_onsets(times, onset_env, kept_onsets, dropped_onsets, plot_path):
     plt.savefig(plot_path)
     plt.close()
 
+
 def safe_tmp(suffix):
     return tempfile.NamedTemporaryFile(suffix=suffix, delete=False, dir=tempfile.gettempdir()).name
+
 
 # TODO consider using formatted commands similar to the ffmpeg formatting
 def ffprobe_duration(path):
@@ -65,6 +70,7 @@ def ffprobe_duration(path):
         return float(run_command(cmd).strip())
     except Exception:
         return None
+
 
 def ffprobe_stream_info(path):
     cmd = [
