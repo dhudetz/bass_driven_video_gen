@@ -48,11 +48,20 @@ class VideoCompiler:
         self.video_files = []
         self.output_path = folder / output_filename
         self.segments_dir = folder / "segments"
+        # Cache video metadata early so we can weight selection by duration.
+        # Keys are Path objects, values are float durations (seconds).
+        self._duration_map: dict[Path, float] = {}
+        # Corresponding weights (aligned to self.video_files) used for weighted selection rolls.
+        self._weights: list[float] = []
 
     def collect_videos(self):
         """Scans the folder for valid video files (.mov and .mp4),
-        excluding those starting with 'compiled', and optionally removes short ones."""
+        excluding those starting with 'compiled', and optionally removes short ones.
+        Also caches each video's duration and builds a length-weighted selection table so
+        that longer videos are proportionally more likely to be picked when drawing clips."""
         valid_extensions = {".mov", ".mp4"}
+        # Stage 1: discover candidates
+        candidates: list[Path] = []
         for f in self.folder.iterdir():
             name_lower = f.name.lower()
             if (
@@ -60,18 +69,33 @@ class VideoCompiler:
                 and not name_lower.startswith("._")
                 and not name_lower.startswith("compiled")
             ):
-                self.video_files.append(f)
+                candidates.append(f)
 
-        for file in tqdm(self.video_files[:], desc="Validating video files"):
+        # Stage 2: validate + cache durations, optionally prune short files
+        for file in tqdm(candidates, desc="Validating video files"):
             dur = ffprobe_duration(file)
             if dur is None or dur < MIN_INPUT_VIDEO_LEN:
-                self.video_files.remove(file)
                 if DELETE_SMALL_FILES:
-                    file.unlink()
+                    try:
+                        file.unlink()
+                    except Exception:
+                        pass
+                continue
+            self.video_files.append(file)
+            self._duration_map[file] = float(dur)
 
-    def extract_random_segment(self, video_path: Path, duration: float) -> Path | None:
-        """Extracts a random clip of a given duration from a video."""
-        vid_dur = ffprobe_duration(video_path)
+        # Build weights aligned to self.video_files. We bias selection by absolute duration,
+        # then apply a small floor so tiny-but-valid clips still have a non-zero chance.
+        if self.video_files:
+            durations = [self._duration_map[p] for p in self.video_files]
+            min_floor = 1e-6
+            self._weights = [max(d, min_floor) for d in durations]
+
+    def extract_random_segment(self, video_path: Path, duration: float, vid_dur: float | None = None) -> Path | None:
+        """Extracts a random clip of a given duration from a video.
+        Accepts an optional cached duration to avoid redundant probes."""
+        if vid_dur is None:
+            vid_dur = ffprobe_duration(video_path)
         if not vid_dur or vid_dur <= 0:
             return None
         start_time = random.uniform(0, max(0, vid_dur - duration))
@@ -99,24 +123,26 @@ class VideoCompiler:
             return None
 
     def extract_segments(self):
-        """Extracts segments for each bass hit interval."""
+        """Extracts segments for each bass hit interval.
+        Uses a length-weighted random picker so short source videos are drawn less often."""
         self.segments_dir.mkdir(exist_ok=True)
-        random.shuffle(self.video_files)
-        clip_idx = 0
         segments = []
         random_clip_min = self.config["RANDOM_CLIP_MIN"]
         random_clip_max = self.config["RANDOM_CLIP_MAX"]
 
         for i in tqdm(range(len(self.bass_hits) - 1), desc="Extracting segments"):
             dur = max(random_clip_min, min(self.bass_hits[i + 1] - self.bass_hits[i], random_clip_max))
+
+            # Length-weighted roll: longer videos have proportionally higher probability.
+            # We roll per segment to avoid repeating the same short clip disproportionately.
+            chosen_video = random.choices(self.video_files, weights=self._weights, k=1)[0]
+            chosen_vid_dur = self._duration_map.get(chosen_video)
+
             seg_path = self.segments_dir / f"seg_{i:04d}.mp4"
-            seg_file = self.extract_random_segment(self.video_files[clip_idx], dur)
+            seg_file = self.extract_random_segment(chosen_video, dur, vid_dur=chosen_vid_dur)
             if seg_file:
                 shutil.move(seg_file, seg_path)
                 segments.append(seg_path)
-            clip_idx = (clip_idx + 1) % len(self.video_files)
-            if clip_idx == 0:
-                random.shuffle(self.video_files)
 
         return segments
 
@@ -197,3 +223,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+
