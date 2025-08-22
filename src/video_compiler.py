@@ -66,21 +66,15 @@ class VideoCompiler:
         self._weights: list[float] = []
 
     def collect_videos(self):
-        """Scans the folder for valid video files (.mov and .mp4),
-        excluding those starting with 'compiled', and optionally removes short ones.
-        Also caches each video's duration and builds a length-weighted selection table so
-        that longer videos are proportionally more likely to be picked when drawing clips."""
+        """Scan folder for valid videos, cache durations, optionally remove short ones, build selection weights."""
         valid_extensions = {".mov", ".mp4"}
+
         # Stage 1: discover candidates
-        candidates: list[Path] = []
-        for f in self.folder.iterdir():
-            name_lower = f.name.lower()
-            if (
-                f.suffix.lower() in valid_extensions
-                and not name_lower.startswith("._")
-                and not name_lower.startswith("compiled")
-            ):
-                candidates.append(f)
+        candidates: list[Path] = [
+            f for f in self.folder.iterdir()
+            if f.suffix.lower() in valid_extensions
+            and not f.name.lower().startswith(("._", "compiled"))
+        ]
 
         # Stage 2: validate + cache durations, optionally prune short files
         for file in tqdm(candidates, desc="Validating video files"):
@@ -95,36 +89,36 @@ class VideoCompiler:
             self.video_files.append(file)
             self._duration_map[file] = float(dur)
 
-        # Build weights aligned to self.video_files. We bias selection by absolute duration,
-        # then apply a small floor so tiny-but-valid clips still have a non-zero chance.
+        # Build weights aligned to self.video_files, biasing by duration
         if self.video_files:
             durations = [self._duration_map[p] for p in self.video_files]
             min_floor = 1e-6
             self._weights = [max(d, min_floor) for d in durations]
 
+
     def extract_random_segment(self, video_path: Path, duration: float, vid_dur: float | None = None) -> Path | None:
         """Extracts a random clip of a given duration from a video.
-        Accepts an optional cached duration to avoid redundant probes."""
+        Accepts an optional cached duration to avoid redundant probes.
+        Trimming is precise to avoid extra frames or overshoot."""
         if vid_dur is None:
             vid_dur = ffprobe_duration(video_path)
         if not vid_dur or vid_dur <= 0:
             return None
+
+        # Ensure we never exceed video length
+        duration = min(duration, vid_dur)
         start_time = random.uniform(0, max(0, vid_dur - duration))
         seg_path = safe_tmp(".mp4")
 
-        fps = ffprobe_stream_info(video_path)["r_fps"]
-        gop = int(round(fps * 2))
-
         cmd = [
             "ffmpeg", "-y",
-            "-ss", f"{start_time:.3f}",
-            "-t", f"{duration:.3f}",
-            "-i", str(video_path),
+            "-i", str(video_path),       # input
+            "-ss", f"{start_time:.3f}",  # seek after input for accuracy
+            "-t", f"{duration:.3f}",     # exact duration
             "-c:v", "libx264", "-preset", "veryfast", "-crf", "14",
             "-pix_fmt", "yuv420p",
-            "-g", str(gop), "-keyint_min", str(gop),
-            "-sc_threshold", "0",
             "-movflags", "+faststart",
+            "-avoid_negative_ts", "make_zero",  # avoid timestamp drift
             seg_path
         ]
         try:
@@ -132,6 +126,7 @@ class VideoCompiler:
             return Path(seg_path)
         except subprocess.CalledProcessError:
             return None
+
 
     def extract_segments(self):
         """Extracts segments for each bass hit interval.
