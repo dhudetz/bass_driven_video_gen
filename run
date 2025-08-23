@@ -1,10 +1,13 @@
-# Path to your script (edit if needed)
-export GENERATOR_PY="/Users/dhudetz/code/bass_driven_video_gen/src/run.py"
-export VENV_DIR="/Users/dhudetz/code/bass_driven_video_gen/venv/bin/python"
+# Resolve repo root as the directory where this script lives
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Run chaos video generator.
+# Paths relative to repo root
+GENERATOR_PY="$REPO_ROOT/src/run.py"
+VENV_DIR="$REPO_ROOT/venv/bin/python"
+
+# Run music video generator.
 # Usage:
-#   chaosvid [directory]
+#   musicvideo [directory]
 # If no directory is given, it uses the current directory.
 musicvideo() {
   local dir="${1:-$PWD}"
@@ -14,24 +17,48 @@ musicvideo() {
     return 1
   fi
   if [[ ! -f "$GENERATOR_PY" ]]; then
-    echo "error: CHAOS_PY not found at '$GENERATOR_PY'" >&2
+    echo "error: run.py not found at '$GENERATOR_PY'" >&2
     return 1
   fi
 
+  # Ensure Python available
+  local sys_py="$(command -v python3 || command -v python)"
+  if [[ -z "$sys_py" ]]; then
+    echo "error: couldn't find a system Python interpreter" >&2
+    return 1
+  fi
+
+  # Bootstrap venv if missing
+  if [[ ! -x "$VENV_DIR" ]]; then
+    echo "⚙️  Creating virtual environment at $REPO_ROOT/venv..."
+    "$sys_py" -m venv "$REPO_ROOT/venv" || {
+      echo "error: failed to create venv" >&2
+      return 1
+    }
+    source "$REPO_ROOT/venv/bin/activate"
+    if [[ -f "$REPO_ROOT/requirements.txt" ]]; then
+      echo "📦 Installing dependencies from requirements.txt..."
+      pip install --upgrade pip setuptools wheel
+      pip install -r "$REPO_ROOT/requirements.txt" || {
+        echo "error: pip install failed" >&2
+        deactivate
+        return 1
+      }
+    else
+      echo "⚠️  No requirements.txt found in $REPO_ROOT"
+    fi
+  fi
+
+  # Use venv python
   local py="$VENV_DIR"
-  [[ -x "$py" ]] || py="$(command -v python3 || command -v python)"
-
-  if [[ -z "$py" ]]; then
-    echo "error: couldn't find a Python interpreter" >&2
-    return 1
-  fi
+  [[ -x "$py" ]] || py="$sys_py"
 
   "$py" "$GENERATOR_PY" "$dir"
 }
 
 # Optional: tab-complete directories for the first arg
-_comp_chaosvid() {
+_comp_musicvideo() {
   _files -/
 }
-compdef _comp_chaosvid chaosvid
+compdef _comp_musicvideo musicvideo
 

@@ -1,7 +1,7 @@
-AUDIO_PATH: /Users/dhudetz/Downloads/audio/mr. krabs walking type beat.mp3
-HOP_LENGTH: 252
-LF_MAX_HZ: 313
-LF_MIN_HZ: 100
-ONSET_DELTA: 0.33
+AUDIO_PATH: /Users/dhudetz/Downloads/audio/Angus & Julia Stone - Big Jet Plane (Lyrics).mp3
+HOP_LENGTH: 253
+LF_MAX_HZ: 5400
+LF_MIN_HZ: 5300
+ONSET_DELTA: 0.4
 RANDOM_CLIP_MAX: 60
-RANDOM_CLIP_MIN: 0.09999999999999999
+RANDOM_CLIP_MIN: 0.40000000000000013
