@@ -1,10 +1,29 @@
-# Lock repo root at the time this file is sourced
-export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+#!/usr/bin/env bash
+#
+# Run script for bass_driven_video_gen
+# Source this file from your shell RC (e.g. .zshrc or .bashrc):
+#
+#   source /path/to/bass_driven_video_gen/run.sh
+#
 
-# Export constants relative to repo root
+# --- Resolve repo root relative to this file, not the caller (.zshrc) ---
+if [ -n "$BASH_SOURCE" ]; then
+  SCRIPT_PATH="${BASH_SOURCE[0]}"
+elif [ -n "${ZSH_VERSION}" ]; then
+  SCRIPT_PATH="${(%):-%N}"
+else
+  SCRIPT_PATH="$0"
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+# Repo root is one level up from this script file
+export REPO_ROOT="$(cd "$SCRIPT_DIR" && pwd)"
+
+# --- Constants ---
 export GENERATOR_PY="$REPO_ROOT/src/run.py"
 export VENV_DIR="$REPO_ROOT/venv/bin/python"
 
+# --- Main function ---
 musicvideo() {
   local dir="${1:-$PWD}"
 
@@ -53,9 +72,11 @@ musicvideo() {
   "$py" "$GENERATOR_PY" "$dir"
 }
 
-# Optional: tab-complete directories for the first arg
+# --- Tab completion for directories ---
 _comp_musicvideo() {
   _files -/
 }
-compdef _comp_musicvideo musicvideo
+if command -v compdef >/dev/null 2>&1; then
+  compdef _comp_musicvideo musicvideo
+fi
 
