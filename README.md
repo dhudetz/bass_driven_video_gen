@@ -1,5 +1,5 @@
 # bass_driven_video_gen
-## Main features:
+## Main features
 * Automatically generate an entire music video from a folder of video clips with a single button.
 * Detect high energy bass hits in audio clip to be used for automatic transitions.
 * Visualize bass detections on a plot that automatically updates.
