@@ -1,14 +1,10 @@
-# Resolve repo root as the directory where this script lives
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Lock repo root at the time this file is sourced
+export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Paths relative to repo root
-GENERATOR_PY="$REPO_ROOT/src/run.py"
-VENV_DIR="$REPO_ROOT/venv/bin/python"
+# Export constants relative to repo root
+export GENERATOR_PY="$REPO_ROOT/src/run.py"
+export VENV_DIR="$REPO_ROOT/venv/bin/python"
 
-# Run music video generator.
-# Usage:
-#   musicvideo [directory]
-# If no directory is given, it uses the current directory.
 musicvideo() {
   local dir="${1:-$PWD}"
 
@@ -21,8 +17,9 @@ musicvideo() {
     return 1
   fi
 
-  # Ensure Python available
-  local sys_py="$(command -v python3 || command -v python)"
+  # Ensure system python exists
+  local sys_py
+  sys_py="$(command -v python3 || command -v python)"
   if [[ -z "$sys_py" ]]; then
     echo "error: couldn't find a system Python interpreter" >&2
     return 1
