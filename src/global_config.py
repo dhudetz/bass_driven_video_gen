@@ -1,3 +1,5 @@
+from logging import DEBUG, INFO
+
 # ========= PIPELINE TOGGLES =========
 # ENABLE_BASS_DETECTION     = True
 ENABLE_PLOTTING           = True
@@ -10,5 +12,7 @@ ENABLE_CLEANUP            = True
 MIN_INPUT_VIDEO_LEN = 5
 DELETE_SMALL_FILES = True
 DEBOUNCE_TIMEOUT = 250 # ms
-
 DO_FAST_VIDEO_GEN = False
+
+# ========  DEV ==========
+LOGGING_LEVEL = DEBUG

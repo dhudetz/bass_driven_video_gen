@@ -12,6 +12,7 @@ from global_config import *
 from bass_detector import BassDetector
 from util import ffprobe_duration, save_config, load_config
 from global_config import DEBOUNCE_TIMEOUT
+from env import logger
 
 # ========= WORKER CLASS ============
 class DetectionWorker(QObject):
@@ -94,14 +95,14 @@ class EditorUserInterface(QWidget):
         try:
             self.audio_detector_config = load_config()
         except Exception:
-            print("[WARNING] Failed to load config. Using defaults.")
+            logger.warning("Failed to load config. Using defaults.")
 
         if "AUDIO_PATH" in self.audio_detector_config:
             try:
                 self.audio_path = Path(self.audio_detector_config["AUDIO_PATH"])
-                print("[INFO] Loaded audio file from config")
+                logger.info("Loaded audio file from config")
             except Exception:
-                print("[WARNING] Audio path in config is invalid.")
+                logger.warning("Audio path in config is invalid.")
 
         self.canvas = FigureCanvas(Figure(figsize=(10, 4)))
         self.ax = self.canvas.figure.add_subplot(111)
@@ -200,7 +201,7 @@ class EditorUserInterface(QWidget):
             file_path = Path(file_path_str)
 
         if not file_path.exists():
-            print(f"[ERROR] Audio file not found: {file_path}")
+            logger.error(f"Audio file not found: {file_path}")
             return
 
         self.audio_path = file_path

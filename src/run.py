@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 """
-chaos_video_gen.py
 
-Creates a chaotic video compilation synced to detected bass hits in an audio file.
+Creates a video compilation synced to detected bass hits in an audio file.
 Uses random video segments from input videos and aligns cuts to audio onsets.
 
-Modules:
-    - BassDetector: Detects onsets from audio.
-    - VideoCompiler: Compiles video based on those onsets.
-    - Util functions: command wrappers and helpers.
-
 Usage:
-    python chaos_video_gen.py <directory_with_videos_and_audio>
+    python run.py <directory_with_video>
+
 """
 
-from datetime import datetime
 from pathlib import Path
 import argparse
+from env import logger
 
 from editor_ui import launch_editor_ui
 from video_compiler import VideoCompiler
@@ -39,7 +34,7 @@ def main():
 
     # Exit if editor was closed or returned invalid values.
     if not _success:
-        print("Editor closed or invalid input. Exiting.")
+        logger.error("Editor closed or invalid input. Exiting.")
         return
 
     # Run the video compiler; progress is visible in the CLI.

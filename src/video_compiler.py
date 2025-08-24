@@ -4,6 +4,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 from global_config import *
+from env import logger
 from tqdm import tqdm
 
 from global_config import DO_FAST_VIDEO_GEN
@@ -134,7 +135,7 @@ class VideoCompiler:
         temp_concat = self.folder / "concat.mp4"
 
         try:
-            print("[INFO] Concatenating segments...")
+            logger.info("Concatenating segments...")
             cmd = format_ffmpeg_cmd(
                 CONCAT_COPY_CMD,
                 file_list=file_list_path,
@@ -154,7 +155,7 @@ class VideoCompiler:
 
     def add_audio(self, concat_path: Path):
         """Merges the audio file with the compiled video."""
-        print("[INFO] Adding audio...")
+        logger.info("Adding audio...")
         cmd = format_ffmpeg_cmd(
             ADD_AUDIO_CMD,
             video_path=concat_path,
@@ -165,7 +166,7 @@ class VideoCompiler:
 
     def cleanup(self, concat_path: Path):
         """Cleans up intermediate files and folders."""
-        print("[INFO] Cleaning up...")
+        logger.info("Cleaning up...")
         concat_path.unlink()
         shutil.rmtree(self.segments_dir)
 
@@ -173,10 +174,10 @@ class VideoCompiler:
         """Runs the full compilation process."""
         self.collect_videos()
         if not self.video_files:
-            print("[ERROR] No valid videos.")
+            logger.error("No valid videos.")
             return
         segments = self.extract_segments()
         concat_path = self.concatenate_segments(segments)
         self.add_audio(concat_path)
         self.cleanup(concat_path)
-        print(f"[✅ DONE] Compiled video saved to:\n{self.output_path}")
+        logger.info(f"✅ Compiled video saved to:\n{self.output_path}")
