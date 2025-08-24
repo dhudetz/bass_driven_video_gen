@@ -1,6 +1,7 @@
 from logging import getLogger, StreamHandler, Formatter, WARNING
-from global_config import LOGGING_LEVEL
+from config.global_config import LOGGING_LEVEL
 from sys import stdout
+from src.common.constants import ROOT_DIR
 
 # Sleek colorized formatter
 class ColorFormatter(Formatter):
@@ -39,3 +40,6 @@ if not logger.handlers:
     handler.setLevel(LOGGING_LEVEL)
     handler.setFormatter(ColorFormatter())
     logger.addHandler(handler)
+
+
+logger.debug(ROOT_DIR)

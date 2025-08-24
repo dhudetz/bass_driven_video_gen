@@ -20,7 +20,7 @@ SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 export REPO_ROOT="$(cd "$SCRIPT_DIR" && pwd)"
 
 # --- Constants ---
-export GENERATOR_PY="$REPO_ROOT/src/run.py"
+export GENERATOR_PY="$REPO_ROOT/run.py"
 export VENV_DIR="$REPO_ROOT/venv/bin/python"
 
 # --- Main function ---

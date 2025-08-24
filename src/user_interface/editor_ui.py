@@ -2,17 +2,16 @@ from PyQt6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QSpinBox, QDoubleSpinBox, QFileDialog
 )
-from PyQt6.QtCore import Qt, QThread, QObject, pyqtSignal, pyqtSlot, QTimer
+from PyQt6.QtCore import QThread, QObject, pyqtSignal, pyqtSlot, QTimer
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from pathlib import Path
 import librosa
 import sys
-from global_config import *
-from bass_detector import BassDetector
-from util import ffprobe_duration, save_config, load_config
-from global_config import DEBOUNCE_TIMEOUT
-from env import logger
+from src.processors.bass_detector import BassDetector
+from src.util.util import ffprobe_duration, save_config, load_config
+from config.global_config import DEBOUNCE_TIMEOUT
+from src.common.env import logger
 
 # ========= WORKER CLASS ============
 class DetectionWorker(QObject):

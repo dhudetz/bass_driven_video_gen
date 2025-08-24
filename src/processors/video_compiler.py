@@ -3,13 +3,12 @@ import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from global_config import *
-from env import logger
+from src.common.env import logger
 from tqdm import tqdm
 
-from global_config import DO_FAST_VIDEO_GEN
-from util import safe_tmp, ffprobe_duration, ffprobe_stream_info
-from ffmpeg import (
+from config.global_config import DO_FAST_VIDEO_GEN, MIN_INPUT_VIDEO_LEN, DELETE_SMALL_FILES
+from src.util.util import safe_tmp, ffprobe_duration, ffprobe_stream_info
+from src.util.ffmpeg import (
     FAST_COPY_EXTRACT_CMD,
     FRAME_ACCURATE_EXTRACT_CMD,
     CONCAT_COPY_CMD,

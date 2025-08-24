@@ -11,10 +11,10 @@ Usage:
 
 from pathlib import Path
 import argparse
-from env import logger
+from src.common.env import logger
 
-from editor_ui import launch_editor_ui
-from video_compiler import VideoCompiler
+from src.user_interface.editor_ui import launch_editor_ui
+from src.processors.video_compiler import VideoCompiler
 
 
 # ========= ENTRY POINT =========
