@@ -49,9 +49,11 @@ ADD_AUDIO_CMD = [
     "ffmpeg", "-y",
     "-i", "{video_path}",
     "-i", "{audio_path}",
-    "-shortest",
-    "-c:v", "copy",
-    "-c:a", "aac",
+    "-map", "0:v:0",    # take video from first input
+    "-map", "1:a:0",    # take audio from second input
+    "-c:v", "copy",     # copy video without re-encoding
+    "-c:a", "aac",      # re-encode audio to AAC
+    "-shortest",        # cut to the shortest of video or audio
     "{output_path}"
 ]
 
